@@ -20,16 +20,25 @@ ON CONFLICT (key) DO NOTHING;
 
 -- 2. PROFILES
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username TEXT UNIQUE NOT NULL,
   email TEXT NOT NULL,
-  password TEXT,
+  password TEXT DEFAULT '123',
   full_name TEXT NOT NULL,
   phone TEXT,
   role TEXT NOT NULL CHECK (role IN ('owner', 'admin_pusat', 'admin_cabang', 'penjual')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Seed initial default accounts
+INSERT INTO public.profiles (id, username, email, password, full_name, role) VALUES 
+  ('11111111-1111-1111-1111-111111111111', 'owner', 'owner@panconglumer.com', '123', 'Hj. Nafa (Owner)', 'owner'),
+  ('22222222-2222-2222-2222-222222222222', 'adminpusat', 'admin.pusat@panconglumer.com', '123', 'Rian (Admin Pusat)', 'admin_pusat'),
+  ('33333333-3333-3333-3333-333333333333', 'admincdd', 'admin.cidodol@panconglumer.com', '123', 'Budi (Admin Cidodol)', 'admin_cabang'),
+  ('44444444-4444-4444-4444-444444444444', 'kasircdd', 'kasir.cidodol@panconglumer.com', '123', 'Siti Kasir (Penjual Cidodol)', 'penjual'),
+  ('55555555-5555-5555-5555-555555555555', 'kasirblj', 'kasir.blujami@panconglumer.com', '123', 'Andi Kasir (Penjual Blujami)', 'penjual')
+ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password;
 
 -- 3. BRANCHES
 CREATE TABLE IF NOT EXISTS public.branches (
@@ -269,3 +278,14 @@ ALTER TABLE public.daily_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payroll_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payroll_items ENABLE ROW LEVEL SECURITY;
+
+-- Allow public access policies for anon client
+DROP POLICY IF EXISTS "Allow public read access for profiles" ON public.profiles;
+CREATE POLICY "Allow public read access for profiles" ON public.profiles FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow public full access for profiles" ON public.profiles;
+CREATE POLICY "Allow public full access for profiles" ON public.profiles FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Allow public full access for branches" ON public.branches;
+CREATE POLICY "Allow public full access for branches" ON public.branches FOR ALL USING (true);
+
