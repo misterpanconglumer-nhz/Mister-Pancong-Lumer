@@ -9,8 +9,9 @@ import { useApp } from '@/context/AppContext';
 
 export const MobileNav: React.FC = () => {
   const pathname = usePathname();
-  const { isOwner, isAdminPusat } = useAuth();
+  const { isOwner, isAdminPusat, isAdminCabang } = useAuth();
   const { cartTotalCount } = useApp();
+  const isPenjual = !isOwner && !isAdminPusat && !isAdminCabang;
 
   const navItems = [
     {
@@ -24,22 +25,29 @@ export const MobileNav: React.FC = () => {
       href: '/sales',
       icon: Receipt,
     },
-    {
+  ];
+
+  if (!isPenjual) {
+    navItems.push({
       label: 'Pengeluaran',
       href: '/expenses',
       icon: Wallet,
-    },
-    {
-      label: 'Absensi',
-      href: '/attendance',
-      icon: CalendarCheck,
-    },
-    {
+    });
+  }
+
+  navItems.push({
+    label: 'Absensi',
+    href: '/attendance',
+    icon: CalendarCheck,
+  });
+
+  if (!isPenjual) {
+    navItems.push({
       label: 'Laporan',
       href: '/daily-reports',
       icon: ClipboardList,
-    },
-  ];
+    });
+  }
 
   if (isOwner || isAdminPusat) {
     navItems.push({

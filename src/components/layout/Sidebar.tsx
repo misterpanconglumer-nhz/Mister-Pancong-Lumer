@@ -24,13 +24,21 @@ export const Sidebar: React.FC = () => {
   const { isOwner, isAdminPusat, isAdminCabang } = useAuth();
   const { cartTotalCount } = useApp();
 
+  const isPenjual = !isOwner && !isAdminPusat && !isAdminCabang;
+
   const mainNav = [
     { label: 'Kasir POS', href: '/pos', icon: ShoppingCart, badge: cartTotalCount > 0 ? cartTotalCount : undefined },
     { label: 'Riwayat Penjualan', href: '/sales', icon: Receipt },
-    { label: 'Pengeluaran', href: '/expenses', icon: Wallet },
-    { label: 'Laporan Harian & Kas', href: '/daily-reports', icon: ClipboardList },
-    { label: 'Absensi & Shift', href: '/attendance', icon: CalendarCheck },
   ];
+
+  if (!isPenjual) {
+    mainNav.push(
+      { label: 'Pengeluaran', href: '/expenses', icon: Wallet },
+      { label: 'Laporan Harian & Kas', href: '/daily-reports', icon: ClipboardList }
+    );
+  }
+
+  mainNav.push({ label: 'Absensi & Shift', href: '/attendance', icon: CalendarCheck });
 
   const adminNav = [
     { label: 'Dashboard Center', href: '/dashboard', icon: LayoutDashboard },

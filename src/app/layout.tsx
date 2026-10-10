@@ -3,9 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { AppProvider } from '@/context/AppContext';
-import Navbar from '@/components/layout/Navbar';
-import MobileNav from '@/components/layout/MobileNav';
-import Sidebar from '@/components/layout/Sidebar';
+import AppLayoutWrapper from '@/components/layout/AppLayoutWrapper';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -37,12 +35,7 @@ export default function RootLayout({
       <body className={`${inter.className} bg-cream-50 text-slate-800 min-h-screen flex flex-col antialiased selection:bg-amber-200 selection:text-brand-900`}>
         <AuthProvider>
           <AppProvider>
-            <Navbar />
-            <div className="flex-1 flex max-w-7xl w-full mx-auto pb-20 md:pb-6">
-              <Sidebar />
-              <main className="flex-1 p-4 md:p-6 overflow-x-hidden">{children}</main>
-            </div>
-            <MobileNav />
+            <AppLayoutWrapper>{children}</AppLayoutWrapper>
           </AppProvider>
         </AuthProvider>
       </body>
