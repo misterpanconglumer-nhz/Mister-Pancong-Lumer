@@ -6,7 +6,7 @@ import { useApp } from '@/context/AppContext';
 import { Product, Category, SaleTransaction } from '@/types';
 import { DataService } from '@/lib/services/dataService';
 import { formatRupiah } from '@/lib/utils/formatters';
-import { Search, ShoppingBag, Plus, Sparkles, Filter } from 'lucide-react';
+import { Search, ShoppingBag, Plus, Sparkles, Filter, X } from 'lucide-react';
 import VariantSelectorModal from '@/components/pos/VariantSelectorModal';
 import CartDrawer from '@/components/pos/CartDrawer';
 import ReceiptModal from '@/components/pos/ReceiptModal';
@@ -45,7 +45,6 @@ export default function PosPage() {
     fetchData();
   }, []);
 
-  // Filter products by category and search
   const filteredProducts = products.filter((p) => {
     const matchesCategory = selectedCategory === 'all' || p.category_id === selectedCategory;
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -62,49 +61,49 @@ export default function PosPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 pb-24 md:pb-6">
       
-      {/* Top Banner / Branch Info */}
-      <div className="bg-gradient-to-r from-brand-900 to-brand-800 text-amber-50 p-4 rounded-3xl shadow-lg flex items-center justify-between">
+      {/* Top Banner / Branch Header */}
+      <div className="bg-gradient-to-r from-[#3d1e0f] via-[#522b17] to-amber-950 text-white p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl shadow-lg flex items-center justify-between">
         <div>
-          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
-            Kasir Operasional
+          <span className="text-[9px] sm:text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
+            Kasir POS Cabang
           </span>
-          <h1 className="text-lg md:text-xl font-extrabold text-white mt-0.5">
+          <h1 className="text-base sm:text-xl font-black text-white mt-0.5">
             {activeBranch ? `Cabang ${activeBranch.name}` : 'Mister Pancong Lumer'}
           </h1>
         </div>
-        <div className="hidden sm:flex items-center gap-2 text-xs text-amber-200">
-          <Sparkles className="w-4 h-4 text-amber-400" />
-          <span>Sentuh gambar untuk memilih varian lumer & topping</span>
+        <div className="flex items-center gap-1.5 text-xs text-amber-200">
+          <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+          <span className="hidden sm:inline">Sentuh menu untuk varian lumer & topping</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 items-start">
         
         {/* Left 2 Cols: Search, Category Chips & Product Grid */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="lg:col-span-2 space-y-3">
           
           {/* Search Bar & Category Filters */}
-          <div className="space-y-3 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
+          <div className="space-y-2.5 bg-white p-3 sm:p-4 rounded-2xl sm:rounded-3xl border border-amber-900/10 shadow-xs">
             <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari pancong lumer, crispy, atau minuman..."
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-700 focus:bg-white"
+                placeholder="Cari pancong, crispy, es teh..."
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f] focus:bg-white"
               />
             </div>
 
-            {/* Category Filter Chips */}
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {/* Category Filter Chips Horizontal Slider */}
+            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                   selectedCategory === 'all'
-                    ? 'bg-brand-900 text-amber-200 shadow-sm'
+                    ? 'bg-[#3d1e0f] text-amber-200 shadow-xs scale-105'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
@@ -114,9 +113,9 @@ export default function PosPage() {
                 <button
                   key={c.id}
                   onClick={() => setSelectedCategory(c.id)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                     selectedCategory === c.id
-                      ? 'bg-brand-900 text-amber-200 shadow-sm'
+                      ? 'bg-[#3d1e0f] text-amber-200 shadow-xs scale-105'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
@@ -126,38 +125,38 @@ export default function PosPage() {
             </div>
           </div>
 
-          {/* Product Cards Grid */}
+          {/* Mobile Optimized Product Grid (2 columns on mobile) */}
           {loading ? (
-            <div className="py-12 text-center text-slate-400 text-xs">Memuat menu produk...</div>
+            <div className="py-12 text-center text-slate-400 text-xs font-semibold">Memuat katalog pancong...</div>
           ) : filteredProducts.length === 0 ? (
-            <div className="py-12 text-center bg-white rounded-3xl p-6 border border-slate-100">
+            <div className="py-12 text-center bg-white rounded-2xl p-6 border border-slate-100">
               <p className="text-sm font-bold text-slate-700">Produk Tidak Ditemukan</p>
-              <p className="text-xs text-slate-400 mt-1">Coba gunakan kata kunci pencarian atau kategori lain.</p>
+              <p className="text-xs text-slate-400 mt-1">Coba kata kunci lain atau pilih kategori Semua Menu.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-4">
               {filteredProducts.map((product) => (
                 <div
                   key={product.id}
                   onClick={() => handleSelectProduct(product)}
-                  className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all p-3 flex flex-col justify-between cursor-pointer group active:scale-98"
+                  className="bg-white rounded-2xl sm:rounded-3xl border border-amber-900/10 shadow-xs hover:shadow-md transition-all p-2.5 sm:p-3 flex flex-col justify-between cursor-pointer group active:scale-95"
                 >
                   <div>
-                    {/* Image with Placeholder Support */}
-                    <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-amber-50 mb-2.5">
+                    {/* Image Box */}
+                    <div className="relative aspect-square w-full rounded-xl sm:rounded-2xl overflow-hidden bg-amber-50 mb-2">
                       <img
                         src={product.image_url || 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=500&q=80'}
                         alt={product.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                       {product.variants && product.variants.length > 0 && (
-                        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[9px] font-bold text-amber-300">
+                        <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-[9px] font-black text-amber-300">
                           {product.variants.length} Varian
                         </span>
                       )}
                     </div>
 
-                    <h3 className="font-bold text-xs md:text-sm text-slate-900 leading-tight group-hover:text-brand-800 transition-colors line-clamp-1">
+                    <h3 className="font-extrabold text-xs sm:text-sm text-slate-900 leading-tight group-hover:text-amber-900 transition-colors line-clamp-1">
                       {product.name}
                     </h3>
                     {product.description && (
@@ -167,15 +166,15 @@ export default function PosPage() {
                     )}
                   </div>
 
-                  <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] text-slate-400 font-medium">Mulai</p>
-                      <p className="text-xs md:text-sm font-extrabold text-brand-900 leading-tight">
+                      <p className="text-[9px] text-slate-400 font-semibold">Harga</p>
+                      <p className="text-xs sm:text-sm font-black text-[#3d1e0f] leading-tight">
                         {formatRupiah(product.base_price)}
                       </p>
                     </div>
-                    <div className="w-8 h-8 rounded-xl bg-amber-100 text-brand-900 font-bold group-hover:bg-brand-800 group-hover:text-amber-100 flex items-center justify-center transition-colors shadow-xs">
-                      <Plus className="w-4 h-4" />
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-100 text-[#3d1e0f] font-black group-hover:bg-[#3d1e0f] group-hover:text-amber-200 flex items-center justify-center transition-colors shadow-xs">
+                      <Plus className="w-4 h-4 stroke-[3]" />
                     </div>
                   </div>
                 </div>
@@ -194,38 +193,42 @@ export default function PosPage() {
 
       {/* Mobile Sticky Floating Cart Button */}
       {cartTotalCount > 0 && (
-        <div className="fixed bottom-16 inset-x-4 z-40 lg:hidden animate-in slide-in-from-bottom-5">
+        <div className="fixed bottom-14 inset-x-3 z-40 lg:hidden animate-in slide-in-from-bottom-5">
           <button
             onClick={() => setShowMobileCart(true)}
-            className="w-full p-4 rounded-2xl bg-brand-900 text-amber-100 font-bold text-sm shadow-2xl flex items-center justify-between border border-brand-700 active:scale-98 transition-all"
+            className="w-full p-3.5 rounded-2xl bg-[#3d1e0f] text-amber-100 font-black text-xs shadow-2xl flex items-center justify-between border border-amber-700/50 active:scale-98 transition-all"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-amber-500 text-brand-900 font-extrabold flex items-center justify-center">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-amber-500 text-[#3d1e0f] font-black text-xs flex items-center justify-center">
                 {cartTotalCount}
               </div>
-              <div className="text-left">
-                <p className="text-xs text-amber-300">Total Keranjang</p>
-                <p className="text-sm font-extrabold text-white">{formatRupiah(cartSubtotal)}</p>
+              <div className="text-left leading-none">
+                <p className="text-[10px] text-amber-300 font-bold">Keranjang Belanja</p>
+                <p className="text-sm font-black text-white mt-0.5">{formatRupiah(cartSubtotal)}</p>
               </div>
             </div>
-            <div className="flex items-center gap-1 text-amber-300 font-bold text-xs">
-              <span>Bayar Sekarang</span>
-              <ShoppingBag className="w-4 h-4" />
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 text-[#3d1e0f] font-black text-xs">
+              <span>Bayar / Detail</span>
+              <ShoppingBag className="w-3.5 h-3.5" />
             </div>
           </button>
         </div>
       )}
 
-      {/* Mobile Fullscreen Cart Modal */}
+      {/* Mobile Fullscreen Bottom Sheet Cart Modal */}
       {showMobileCart && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex flex-col justify-end lg:hidden">
-          <div className="bg-white rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden">
-            <div className="p-3 bg-slate-100 flex justify-end">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex flex-col justify-end lg:hidden animate-in fade-in">
+          <div className="bg-white rounded-t-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="p-3 bg-[#3d1e0f] text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4 text-amber-400" />
+                <span className="font-extrabold text-xs">Ringkasan Pesanan & Pembayaran</span>
+              </div>
               <button
                 onClick={() => setShowMobileCart(false)}
-                className="px-3 py-1 rounded-full bg-slate-200 text-slate-700 text-xs font-bold"
+                className="p-1 rounded-full text-amber-200 hover:text-white hover:bg-amber-900"
               >
-                Tutup [X]
+                <X className="w-5 h-5" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto">
