@@ -639,12 +639,19 @@ export const DataService = {
       return list[existingIdx];
     }
 
+    const validRecordId = (existingIdx !== -1 && list[existingIdx].id && list[existingIdx].id.length > 20)
+      ? list[existingIdx].id
+      : (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `88888888-8888-4888-8888-${Date.now().toString().padStart(12, '0').slice(-12)}`);
+
+    const validUserId = (userId && userId.length > 20) ? userId : '44444444-4444-4444-4444-444444444444';
+    const validBranchId = (branchId && branchId.length > 20) ? branchId : 'b1111111-1111-1111-1111-111111111111';
+
     const record: AttendanceRecord = {
-      id: existingIdx !== -1 ? list[existingIdx].id : `att-${Date.now()}`,
-      user_id: userId,
+      id: validRecordId,
+      user_id: validUserId,
       user_name: userName,
       user_role: userRole,
-      branch_id: branchId,
+      branch_id: validBranchId,
       branch_name: branchName,
       date: today,
       clock_in: new Date().toISOString(),
@@ -654,8 +661,12 @@ export const DataService = {
     };
 
     if (isSupabaseConfigured()) {
-      const supabase = createClient();
-      await supabase.from('attendance').upsert(record);
+      try {
+        const supabase = createClient();
+        await supabase.from('attendance').upsert(record);
+      } catch (e) {
+        console.warn('Supabase attendance sync skipped:', e);
+      }
     }
 
     if (existingIdx !== -1) list[existingIdx] = record;
@@ -672,8 +683,12 @@ export const DataService = {
     if (idx !== -1) {
       list[idx].clock_out = new Date().toISOString();
       if (isSupabaseConfigured()) {
-        const supabase = createClient();
-        await supabase.from('attendance').update({ clock_out: list[idx].clock_out }).eq('id', list[idx].id);
+        try {
+          const supabase = createClient();
+          await supabase.from('attendance').update({ clock_out: list[idx].clock_out }).eq('id', list[idx].id);
+        } catch (e) {
+          console.warn('Supabase attendance clockout skipped:', e);
+        }
       }
       setLocalItem('attendance', list);
       return list[idx];

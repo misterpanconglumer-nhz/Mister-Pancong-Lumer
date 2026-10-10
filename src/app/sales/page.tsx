@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { SaleTransaction } from '@/types';
 import { DataService } from '@/lib/services/dataService';
 import { formatRupiah, formatDateTime } from '@/lib/utils/formatters';
-import { Search, Filter, Receipt, Ban, Eye, Printer, Calendar, Store, User } from 'lucide-react';
+import { Search, Filter, Receipt, Ban, Eye, Printer, Calendar, Store, User, RotateCcw } from 'lucide-react';
 import ReceiptModal from '@/components/pos/ReceiptModal';
 
 export default function SalesHistoryPage() {
@@ -15,6 +15,7 @@ export default function SalesHistoryPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterBranchId, setFilterBranchId] = useState<string>('all');
+  const [filterDate, setFilterDate] = useState<string>('');
   const [selectedTx, setSelectedTx] = useState<SaleTransaction | null>(null);
 
   // Cancellation modal states
@@ -38,15 +39,32 @@ export default function SalesHistoryPage() {
     fetchSales();
   }, []);
 
+  // Preset Date Handlers
+  const handleSetToday = () => {
+    const today = new Date().toISOString().split('T')[0];
+    setFilterDate(today);
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setFilterBranchId('all');
+    setFilterDate('');
+  };
+
   // Filter logic
   const filteredSales = sales.filter((s) => {
-    // Seller only sees own branch or own sales if not owner/admin_pusat
+    // Non-owner / non-admin only sees own branch
     if (!isOwner && !isAdminPusat && activeBranch && s.branch_id !== activeBranch.id) {
       return false;
     }
 
     if (filterBranchId !== 'all' && s.branch_id !== filterBranchId) {
       return false;
+    }
+
+    if (filterDate !== '') {
+      const txDate = s.created_at.split('T')[0];
+      if (txDate !== filterDate) return false;
     }
 
     if (searchQuery.trim() !== '') {
@@ -58,6 +76,10 @@ export default function SalesHistoryPage() {
 
     return true;
   });
+
+  const totalOmzetFiltered = filteredSales
+    .filter((s) => s.status === 'completed')
+    .reduce((acc, curr) => acc + curr.total_amount, 0);
 
   const handleConfirmCancel = async () => {
     if (!txToCancel || !cancelReason.trim() || !user) return;
@@ -81,51 +103,103 @@ export default function SalesHistoryPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
         <div>
           <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Riwayat Penjualan</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Daftar seluruh transaksi kasir & bukti pembayaran</p>
+          <p className="text-xs text-slate-500 mt-0.5">Filter transaksi kasir berdasarkan tanggal, cabang, & pencarian</p>
         </div>
-        <div className="px-3.5 py-2 rounded-2xl bg-amber-50 border border-amber-200 text-brand-900 font-bold text-xs flex items-center gap-2">
-          <Receipt className="w-4 h-4 text-amber-600" />
-          <span>Total Transaksi: {filteredSales.length}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="px-3.5 py-2 rounded-2xl bg-amber-50 border border-amber-200 text-[#3d1e0f] font-bold text-xs flex items-center gap-2">
+            <Receipt className="w-4 h-4 text-amber-600" />
+            <span>{filteredSales.length} Transaksi</span>
+          </div>
+          <div className="px-3.5 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-extrabold text-xs">
+            Omzet: {formatRupiah(totalOmzetFiltered)}
+          </div>
         </div>
       </div>
 
-      {/* Search & Filters */}
-      <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari nomor transaksi TRX-... atau nama kasir"
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-700"
-          />
+      {/* Search & Date Filter Bar */}
+      <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+          
+          {/* Search Box */}
+          <div className="relative md:col-span-5">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari nomor transaksi TRX-... atau nama kasir"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+            />
+          </div>
+
+          {/* Date Parameter Filter */}
+          <div className="relative md:col-span-4 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Calendar className="w-4 h-4 text-amber-600 absolute left-3 top-3.5" />
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+              />
+            </div>
+            <button
+              onClick={handleSetToday}
+              className="px-3 py-2.5 bg-amber-100 hover:bg-amber-200 text-[#3d1e0f] rounded-2xl text-xs font-extrabold shrink-0 transition-colors"
+              title="Filter Transaksi Hari Ini"
+            >
+              Hari Ini
+            </button>
+          </div>
+
+          {/* Branch Picker (Owner) */}
+          {isOwner && (
+            <div className="md:col-span-3">
+              <select
+                value={filterBranchId}
+                onChange={(e) => setFilterBranchId(e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+              >
+                <option value="all">Semua Cabang</option>
+                <option value="br-1">Cabang Cidodol</option>
+                <option value="br-2">Cabang Blujami</option>
+              </select>
+            </div>
+          )}
+
         </div>
 
-        {isOwner && (
-          <div className="w-full md:w-48">
-            <select
-              value={filterBranchId}
-              onChange={(e) => setFilterBranchId(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-700"
+        {/* Active Filter Indicators */}
+        {(filterDate || filterBranchId !== 'all' || searchQuery) && (
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+            <div className="flex items-center gap-2 text-slate-500">
+              <Filter className="w-3.5 h-3.5 text-amber-600" />
+              <span>Filter Aktif:</span>
+              {filterDate && <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-[#3d1e0f] font-mono font-bold">Tanggal: {filterDate}</span>}
+              {filterBranchId !== 'all' && <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-[#3d1e0f] font-bold">Cabang: {filterBranchId}</span>}
+              {searchQuery && <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-medium">" {searchQuery} "</span>}
+            </div>
+
+            <button
+              onClick={handleClearFilters}
+              className="text-xs text-rose-600 hover:underline font-bold flex items-center gap-1"
             >
-              <option value="all">Semua Cabang</option>
-              <option value="br-1">Cabang Cidodol</option>
-              <option value="br-2">Cabang Blujami</option>
-            </select>
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Filter</span>
+            </button>
           </div>
         )}
       </div>
 
-      {/* Sales List Table / Card list */}
+      {/* Sales List Table */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="py-12 text-center text-slate-400 text-xs">Memuat data riwayat...</div>
+          <div className="py-12 text-center text-slate-400 text-xs font-bold">Memuat data riwayat...</div>
         ) : filteredSales.length === 0 ? (
           <div className="py-12 text-center space-y-2">
-            <Receipt className="w-12 h-12 text-slate-300 mx-auto" />
-            <p className="text-sm font-bold text-slate-700">Belum Ada Transaksi</p>
-            <p className="text-xs text-slate-400">Transaksi yang dilakukan kasir akan muncul di sini.</p>
+            <Receipt className="w-12 h-12 text-amber-300 mx-auto" />
+            <p className="text-sm font-bold text-slate-700">Belum Ada Transaksi Ditemukan</p>
+            <p className="text-xs text-slate-400">Silakan ganti kata kunci atau pilih tanggal transaksi yang sesuai.</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -169,16 +243,17 @@ export default function SalesHistoryPage() {
                     <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
                       {tx.payment_method}
                     </p>
-                    <p className="text-base font-extrabold text-brand-900">{formatRupiah(tx.total_amount)}</p>
+                    <p className="text-base font-extrabold text-[#3d1e0f]">{formatRupiah(tx.total_amount)}</p>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setSelectedTx(tx)}
-                      className="p-2.5 rounded-xl bg-amber-100 text-brand-900 font-bold hover:bg-amber-200 transition-colors"
+                      className="p-2.5 rounded-xl bg-amber-100 text-[#3d1e0f] font-bold hover:bg-amber-200 transition-colors flex items-center gap-1"
                       title="Lihat Detail & Cetak Nota"
                     >
                       <Eye className="w-4 h-4" />
+                      <span className="text-xs hidden sm:inline">Detail</span>
                     </button>
 
                     {tx.status === 'completed' && (isOwner || isAdminPusat) && (
@@ -217,7 +292,7 @@ export default function SalesHistoryPage() {
 
             <p className="text-xs text-slate-600">
               Anda akan membatalkan transaksi <strong className="font-mono">{txToCancel.transaction_number}</strong> sebesar{' '}
-              <strong className="text-brand-900">{formatRupiah(txToCancel.total_amount)}</strong>. Tindakan ini akan dicatat dalam audit log.
+              <strong className="text-[#3d1e0f]">{formatRupiah(txToCancel.total_amount)}</strong>. Tindakan ini akan dicatat dalam audit log.
             </p>
 
             <div>
