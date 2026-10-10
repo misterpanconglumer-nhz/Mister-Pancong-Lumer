@@ -202,13 +202,13 @@ export default function BranchesPage() {
           <span>Daftar Cabang Aktif ({branches.length})</span>
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {branches.map((b) => (
-            <div key={b.id} className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm space-y-3 flex flex-col justify-between">
+            <div key={b.id} className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-sm space-y-3 flex flex-col justify-between hover:shadow-md hover:border-amber-300 transition-all">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-amber-500 text-brand-900 font-extrabold flex items-center justify-center font-mono text-sm">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500 text-brand-900 font-extrabold flex items-center justify-center font-mono text-sm shadow-sm">
                       {b.code}
                     </div>
                     <div>
@@ -250,35 +250,53 @@ export default function BranchesPage() {
         </div>
       </div>
 
-      {/* Employees Grid */}
+      {/* Employees Grid / Full Width Table */}
       <div className="space-y-3 pt-4">
         <h2 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
           <Users className="w-5 h-5 text-amber-600" />
-          <span>Daftar Akun Pegawai ({users.length})</span>
+          <span>Daftar Akun Pegawai Operasional ({users.length})</span>
         </h2>
 
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-100">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {users.map((u) => (
-            <div key={u.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 transition-colors">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-xs text-slate-900">{u.full_name}</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 capitalize">
-                    {u.role.replace('_', ' ')}
-                  </span>
+            <div key={u.id} className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-sm space-y-3 flex flex-col justify-between hover:shadow-md hover:border-amber-300 transition-all">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-[#3d1e0f] text-amber-300 font-black text-sm flex items-center justify-center shadow-sm">
+                      {u.full_name.charAt(0)}
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-sm text-slate-900 leading-tight">{u.full_name}</h3>
+                      <span className="inline-block mt-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 capitalize">
+                        Role: {u.role.replace('_', ' ')}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-slate-500 font-mono">
-                  <span>Username: <strong className="text-brand-900">{u.username}</strong></span>
-                  <span>Pass: <strong className="text-slate-800">{u.password || '123'}</strong></span>
-                  {u.email && <span className="font-sans text-[11px] text-slate-400">({u.email})</span>}
+                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1 text-xs font-mono text-slate-600">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Username:</span>
+                    <strong className="text-[#3d1e0f] font-bold">{u.username}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Password:</span>
+                    <strong className="text-slate-800 font-bold">{u.password || '123'}</strong>
+                  </div>
+                  {u.email && (
+                    <div className="flex justify-between pt-1 border-t border-slate-200/60 font-sans text-[11px]">
+                      <span className="text-slate-400">Email:</span>
+                      <span className="text-slate-600 truncate max-w-[170px]">{u.email}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
                 <button
                   onClick={() => handleOpenEditUser(u)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1.5 transition-colors"
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-amber-100 text-slate-800 hover:text-[#3d1e0f] font-bold text-xs flex items-center gap-1.5 transition-colors"
                 >
                   <Edit className="w-3.5 h-3.5 text-amber-700" />
                   <span>Edit Pegawai</span>
@@ -286,7 +304,7 @@ export default function BranchesPage() {
                 {u.role !== 'owner' && (
                   <button
                     onClick={() => handleDeleteUser(u.id)}
-                    className="p-1.5 rounded-xl text-rose-600 hover:bg-rose-50"
+                    className="p-2 rounded-xl text-rose-600 hover:bg-rose-50 transition-colors"
                     title="Hapus Pegawai"
                   >
                     <Trash2 className="w-4 h-4" />

@@ -18,9 +18,9 @@ export const AppLayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ chil
   return (
     <AuthGuard>
       <Navbar />
-      <div className="flex-1 flex max-w-7xl w-full mx-auto pb-20 md:pb-6">
+      <div className="flex-1 flex w-full pb-20 md:pb-6">
         <Sidebar />
-        <main className="flex-1 p-4 md:p-6 overflow-x-hidden">{children}</main>
+        <main className="flex-1 p-4 md:p-8 overflow-x-hidden min-w-0">{children}</main>
       </div>
       <MobileNav />
     </AuthGuard>
