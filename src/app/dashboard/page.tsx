@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { SaleTransaction, Expense, DailyReport, Branch } from '@/types';
 import { DataService } from '@/lib/services/dataService';
 import { formatRupiah } from '@/lib/utils/formatters';
-import { LayoutDashboard, TrendingUp, DollarSign, ShoppingBag, Wallet, Store, ShieldCheck, AlertCircle, Sparkles, Award } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, DollarSign, ShoppingBag, Wallet, Store, ShieldCheck, AlertCircle, Sparkles, Award, Lock } from 'lucide-react';
 
 export default function DashboardPage() {
   const { isOwner, isAdminPusat } = useAuth();
@@ -36,8 +36,25 @@ export default function DashboardPage() {
         setLoading(false);
       }
     };
-    fetchDashboardData();
-  }, []);
+    if (isOwner || isAdminPusat) {
+      fetchDashboardData();
+    }
+  }, [isOwner, isAdminPusat]);
+
+  // Strict Role Guard
+  if (!isOwner && !isAdminPusat) {
+    return (
+      <div className="py-16 text-center space-y-3 bg-white rounded-3xl p-8 border border-slate-100 max-w-md mx-auto my-8">
+        <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+          <Lock className="w-8 h-8" />
+        </div>
+        <h2 className="text-lg font-extrabold text-slate-900">Akses Dibatasi</h2>
+        <p className="text-xs text-slate-500">
+          Dashboard Pusat hanya dapat diakses oleh Owner dan Admin Pusat.
+        </p>
+      </div>
+    );
+  }
 
   // Calculate metrics
   const todayStr = new Date().toISOString().split('T')[0];
@@ -49,7 +66,6 @@ export default function DashboardPage() {
   const pendingExpensesCount = expenses.filter((e) => e.status === 'pending').length;
   const pendingReportsCount = reports.filter((r) => r.status === 'pending').length;
 
-  // Best selling item product stats
   const productSalesCount: Record<string, number> = {};
   sales.forEach((s) => {
     s.items?.forEach((item) => {

@@ -36,27 +36,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const savedUserId = typeof window !== 'undefined' ? localStorage.getItem('mpl_current_user_id') : null;
       const users = await DataService.getUsers();
       
-      let currentUser: UserProfile | undefined;
+      let currentUser: UserProfile | undefined = undefined;
       if (savedUserId) {
         currentUser = users.find((u) => u.id === savedUserId);
       }
       
-      if (!currentUser) {
-        currentUser = users.find((u) => u.role === 'owner') || users[0];
-      }
+      // If no valid user session is saved, user remains NULL (Logged Out)
+      setUser(currentUser || null);
 
-      setUser(currentUser);
-
-      const savedBranchId = typeof window !== 'undefined' ? localStorage.getItem('mpl_active_branch_id') : null;
-      let targetBranch = bList.find((b) => b.id === savedBranchId);
-      
-      if (!targetBranch && bList.length > 0) {
-        targetBranch = bList[0];
+      if (currentUser) {
+        const savedBranchId = typeof window !== 'undefined' ? localStorage.getItem('mpl_active_branch_id') : null;
+        let targetBranch = bList.find((b) => b.id === savedBranchId);
+        
+        if (!targetBranch && bList.length > 0) {
+          targetBranch = bList[0];
+        }
+        setActiveBranchState(targetBranch || null);
+      } else {
+        setActiveBranchState(null);
       }
-      setActiveBranchState(targetBranch || null);
 
     } catch (error) {
       console.error('Auth initialization error:', error);
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -81,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return { success: true };
     } else {
-      return { success: false, message: 'Username / Email atau Password salah!' };
+      return { success: false, message: 'Username atau password yang Anda masukkan salah!' };
     }
   };
 
@@ -111,8 +113,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null);
+    setActiveBranchState(null);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('mpl_current_user_id');
+      localStorage.removeItem('mpl_active_branch_id');
     }
   };
 
