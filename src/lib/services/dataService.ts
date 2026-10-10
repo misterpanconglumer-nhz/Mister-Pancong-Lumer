@@ -347,6 +347,45 @@ export const DataService = {
     return newExp;
   },
 
+  async saveExpense(expense: Partial<Expense>): Promise<Expense> {
+    const list = getLocalItem<Expense[]>('expenses', MOCK_EXPENSES);
+    let updated: Expense;
+    if (expense.id) {
+      const idx = list.findIndex((e) => e.id === expense.id);
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], ...expense };
+        updated = list[idx];
+      } else {
+        updated = expense as Expense;
+      }
+    } else {
+      updated = {
+        id: `exp-${Date.now()}`,
+        branch_id: expense.branch_id!,
+        branch_name: expense.branch_name,
+        category_name: expense.category_name || 'Bahan Baku',
+        title: expense.title || 'Pengeluaran Baru',
+        amount: expense.amount || 0,
+        payment_method: expense.payment_method || 'kas_cabang',
+        notes: expense.notes || '',
+        created_by: expense.created_by || '',
+        created_by_name: expense.created_by_name || '',
+        status: expense.status || 'approved',
+        expense_date: expense.expense_date || new Date().toISOString().split('T')[0],
+        created_at: new Date().toISOString(),
+      };
+      list.unshift(updated);
+    }
+    setLocalItem('expenses', list);
+    return updated;
+  },
+
+  async deleteExpense(expenseId: string): Promise<void> {
+    const list = getLocalItem<Expense[]>('expenses', MOCK_EXPENSES);
+    const filtered = list.filter((e) => e.id !== expenseId);
+    setLocalItem('expenses', filtered);
+  },
+
   async updateExpenseStatus(expenseId: string, status: 'approved' | 'rejected', approvedByUserId: string): Promise<void> {
     const list = getLocalItem<Expense[]>('expenses', MOCK_EXPENSES);
     const idx = list.findIndex((e) => e.id === expenseId);
