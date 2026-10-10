@@ -29,11 +29,11 @@ export const Sidebar: React.FC = () => {
   const mainNav = [
     { label: 'Kasir POS', href: '/pos', icon: ShoppingCart, badge: cartTotalCount > 0 ? cartTotalCount : undefined },
     { label: 'Riwayat Penjualan', href: '/sales', icon: Receipt },
+    { label: 'Pengeluaran', href: '/expenses', icon: Wallet },
   ];
 
   if (!isPenjual) {
     mainNav.push(
-      { label: 'Pengeluaran', href: '/expenses', icon: Wallet },
       { label: 'Laporan Harian & Kas', href: '/daily-reports', icon: ClipboardList }
     );
   }

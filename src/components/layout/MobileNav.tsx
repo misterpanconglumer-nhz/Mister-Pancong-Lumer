@@ -25,21 +25,17 @@ export const MobileNav: React.FC = () => {
       href: '/sales',
       icon: Receipt,
     },
-  ];
-
-  if (!isPenjual) {
-    navItems.push({
+    {
       label: 'Pengeluaran',
       href: '/expenses',
       icon: Wallet,
-    });
-  }
-
-  navItems.push({
-    label: 'Absensi',
-    href: '/attendance',
-    icon: CalendarCheck,
-  });
+    },
+    {
+      label: 'Absensi',
+      href: '/attendance',
+      icon: CalendarCheck,
+    },
+  ];
 
   if (!isPenjual) {
     navItems.push({

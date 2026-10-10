@@ -11,7 +11,6 @@ const OWNER_ONLY_PATHS = [
   '/branches',
   '/products',
   '/settings',
-  '/expenses',
   '/daily-reports',
 ];
 
