@@ -129,9 +129,14 @@ export const DataService = {
     if (isSupabaseConfigured()) {
       const supabase = createClient();
       const { data, error } = await supabase.from('profiles').select('*');
-      if (!error && data) return data;
+      if (!error && data && data.length > 0) return data;
     }
-    return getLocalItem<UserProfile[]>('users', MOCK_USERS);
+    const localUsers = getLocalItem<UserProfile[]>('users', MOCK_USERS);
+    if (!localUsers || localUsers.length === 0) {
+      setLocalItem('users', MOCK_USERS);
+      return MOCK_USERS;
+    }
+    return localUsers;
   },
 
   async saveUser(user: Partial<UserProfile>): Promise<UserProfile> {
@@ -169,13 +174,21 @@ export const DataService = {
   },
 
   async authenticateUser(usernameOrEmail: string, pass: string): Promise<UserProfile | null> {
-    const users = await this.getUsers();
-    const found = users.find(
-      (u) =>
-        (u.username.toLowerCase() === usernameOrEmail.toLowerCase() ||
-          u.email.toLowerCase() === usernameOrEmail.toLowerCase()) &&
-        (u.password === pass || !u.password)
-    );
+    let users = await this.getUsers();
+    if (!users || users.length === 0) {
+      users = MOCK_USERS;
+    }
+    const cleanInput = (usernameOrEmail || '').trim().toLowerCase();
+    const cleanPass = (pass || '').trim();
+
+    const found = users.find((u) => {
+      const uName = (u.username || '').trim().toLowerCase();
+      const uEmail = (u.email || '').trim().toLowerCase();
+      const matchIdentity = uName === cleanInput || uEmail === cleanInput;
+      const matchPass = !u.password || u.password === cleanPass;
+      return matchIdentity && matchPass;
+    });
+
     return found || null;
   },
 
