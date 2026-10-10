@@ -4,11 +4,11 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
-import { Store, ChevronDown, LogOut, Settings, Calculator, Sparkles } from 'lucide-react';
+import { Store, ChevronDown, LogOut, Settings, Calculator } from 'lucide-react';
 import CalculatorModal from '@/components/common/CalculatorModal';
 
 export const Navbar: React.FC = () => {
-  const { user, activeBranch, branches, setActiveBranch, isOwner, loginAsDemoUser, logout } = useAuth();
+  const { user, activeBranch, branches, setActiveBranch, isOwner, logout } = useAuth();
   const { settings } = useApp();
   const [showBranchMenu, setShowBranchMenu] = useState(false);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
@@ -21,19 +21,15 @@ export const Navbar: React.FC = () => {
           <div className="flex items-center justify-between py-2 sm:py-3 min-h-[3.75rem]">
             
             {/* Logo & Brand Name */}
-            <Link href={isOwner ? '/dashboard' : '/pos'} className="flex items-center gap-2 group shrink-0">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 p-0.5 shadow-md flex items-center justify-center font-bold text-[#3d1e0f] text-sm sm:text-base shrink-0">
-                {settings.logo_url && !settings.logo_url.includes('placeholder') ? (
-                  <img src={settings.logo_url} alt="Logo" className="w-full h-full object-cover rounded-xl" />
-                ) : (
-                  <span>PL</span>
-                )}
+            <Link href={isOwner ? '/dashboard' : '/pos'} className="flex items-center gap-2.5 group shrink-0">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-black border border-amber-500/40 p-0.5 shadow-md flex items-center justify-center shrink-0 overflow-hidden">
+                <img src={settings.logo_url || '/logo.jpg'} alt="Logo" className="w-full h-full object-contain rounded-lg" />
               </div>
               <div className="flex flex-col justify-center">
-                <h1 className="text-xs sm:text-base font-extrabold text-white leading-tight tracking-tight max-w-[125px] xs:max-w-[160px] sm:max-w-none truncate">
+                <h1 className="text-xs sm:text-base font-extrabold text-white leading-tight tracking-tight max-w-[130px] xs:max-w-[170px] sm:max-w-none truncate">
                   {settings.app_name}
                 </h1>
-                <p className="text-[10px] text-amber-300 font-semibold leading-tight mt-0.5 max-w-[125px] xs:max-w-[160px] sm:max-w-none truncate">
+                <p className="text-[10px] text-amber-300 font-semibold leading-tight mt-0.5 max-w-[130px] xs:max-w-[170px] sm:max-w-none truncate">
                   {settings.brand_owner}
                 </p>
               </div>
@@ -97,7 +93,7 @@ export const Navbar: React.FC = () => {
                 )}
               </div>
 
-              {/* User Profile / Fast Switcher */}
+              {/* User Profile */}
               <div className="relative">
                 <button
                   onClick={() => setShowRoleMenu(!showRoleMenu)}
@@ -111,7 +107,7 @@ export const Navbar: React.FC = () => {
                 </button>
 
                 {showRoleMenu && (
-                  <div className="absolute right-0 mt-2 w-64 bg-white text-slate-800 rounded-2xl shadow-2xl py-2 border border-slate-100 z-50">
+                  <div className="absolute right-0 mt-2 w-56 bg-white text-slate-800 rounded-2xl shadow-2xl py-2 border border-slate-100 z-50">
                     <div className="px-4 py-2 border-b border-slate-100">
                       <p className="text-xs font-extrabold text-slate-900">{user?.full_name}</p>
                       <p className="text-[11px] text-slate-500 font-mono">@{user?.username}</p>
@@ -120,48 +116,11 @@ export const Navbar: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* Fast Switch Role */}
-                    <div className="px-3 py-2 bg-slate-50 border-b border-slate-100">
-                      <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 mb-1.5">
-                        <Sparkles className="w-3 h-3 text-amber-600" />
-                        <span>Simulasi Role (Demo):</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <button
-                          onClick={() => {
-                            loginAsDemoUser('owner');
-                            setShowRoleMenu(false);
-                          }}
-                          className="px-2 py-1 rounded-lg text-[11px] bg-white border hover:bg-amber-50 text-left font-bold text-slate-700"
-                        >
-                          👑 Owner
-                        </button>
-                        <button
-                          onClick={() => {
-                            loginAsDemoUser('admin_pusat');
-                            setShowRoleMenu(false);
-                          }}
-                          className="px-2 py-1 rounded-lg text-[11px] bg-white border hover:bg-amber-50 text-left font-bold text-slate-700"
-                        >
-                          💼 Admin
-                        </button>
-                        <button
-                          onClick={() => {
-                            loginAsDemoUser('penjual');
-                            setShowRoleMenu(false);
-                          }}
-                          className="col-span-2 px-2 py-1 rounded-lg text-[11px] bg-white border hover:bg-amber-50 text-left font-bold text-slate-700"
-                        >
-                          🛒 Penjual (Kasir)
-                        </button>
-                      </div>
-                    </div>
-
                     {isOwner && (
                       <Link
                         href="/settings"
                         onClick={() => setShowRoleMenu(false)}
-                        className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-semibold"
+                        className="flex items-center gap-2 px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 font-semibold border-b border-slate-100"
                       >
                         <Settings className="w-4 h-4 text-slate-500" />
                         <span>Pengaturan Brand</span>
@@ -173,7 +132,7 @@ export const Navbar: React.FC = () => {
                         logout();
                         setShowRoleMenu(false);
                       }}
-                      className="w-full text-left flex items-center gap-2 px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 font-bold"
+                      className="w-full text-left flex items-center gap-2 px-4 py-2.5 text-xs text-rose-600 hover:bg-rose-50 font-bold"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>Keluar (Logout)</span>

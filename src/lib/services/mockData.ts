@@ -17,7 +17,7 @@ import {
 export const INITIAL_APP_SETTINGS: AppIdentitySettings = {
   app_name: 'Mister Pancong Lumer',
   brand_owner: 'By Manage Nafa Family',
-  logo_url: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=200&h=200&q=80',
+  logo_url: '/logo.jpg',
   primary_color: '#6b3e26',
   secondary_color: '#f5e6d3',
   accent_color: '#e65100',
