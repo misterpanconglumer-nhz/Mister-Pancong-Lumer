@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
-import { Store, ChevronDown, LogOut, Settings, Calculator, Sparkles, UserCheck, ShieldCheck } from 'lucide-react';
+import { Store, ChevronDown, LogOut, Settings, Calculator, Sparkles } from 'lucide-react';
 import CalculatorModal from '@/components/common/CalculatorModal';
 
 export const Navbar: React.FC = () => {
@@ -18,32 +18,34 @@ export const Navbar: React.FC = () => {
     <>
       <header className="sticky top-0 z-40 bg-[#3d1e0f] text-amber-50 shadow-md border-b border-amber-950/40">
         <div className="max-w-7xl mx-auto px-3 sm:px-6">
-          <div className="flex items-center justify-between h-14 sm:h-16">
+          <div className="flex items-center justify-between py-2 sm:py-3 min-h-[3.75rem]">
             
             {/* Logo & Brand Name */}
-            <Link href={isOwner ? '/dashboard' : '/pos'} className="flex items-center gap-2.5 group">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 p-0.5 shadow-md flex items-center justify-center font-bold text-[#3d1e0f] text-base sm:text-lg shrink-0">
+            <Link href={isOwner ? '/dashboard' : '/pos'} className="flex items-center gap-2 group shrink-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 p-0.5 shadow-md flex items-center justify-center font-bold text-[#3d1e0f] text-sm sm:text-base shrink-0">
                 {settings.logo_url && !settings.logo_url.includes('placeholder') ? (
                   <img src={settings.logo_url} alt="Logo" className="w-full h-full object-cover rounded-xl" />
                 ) : (
                   <span>PL</span>
                 )}
               </div>
-              <div className="leading-none">
-                <h1 className="text-sm sm:text-lg font-black tracking-tight text-white truncate max-w-[140px] sm:max-w-none">
+              <div className="flex flex-col justify-center">
+                <h1 className="text-xs sm:text-base font-extrabold text-white leading-tight tracking-tight max-w-[125px] xs:max-w-[160px] sm:max-w-none truncate">
                   {settings.app_name}
                 </h1>
-                <p className="text-[10px] text-amber-300 font-medium mt-0.5">{settings.brand_owner}</p>
+                <p className="text-[10px] text-amber-300 font-semibold leading-tight mt-0.5 max-w-[125px] xs:max-w-[160px] sm:max-w-none truncate">
+                  {settings.brand_owner}
+                </p>
               </div>
             </Link>
 
             {/* Controls Header */}
-            <div className="flex items-center gap-1.5 sm:gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-2.5">
               
               {/* Calculator Quick Button */}
               <button
                 onClick={() => setShowCalc(true)}
-                className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-amber-950/60 hover:bg-amber-900/80 text-amber-200 transition-colors flex items-center gap-1 text-xs font-bold border border-amber-800/40"
+                className="p-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-amber-950/60 hover:bg-amber-900/80 text-amber-200 transition-colors flex items-center gap-1 text-xs font-bold border border-amber-800/40"
                 title="Buka Kalkulator Kasir"
               >
                 <Calculator className="w-4 h-4 text-amber-400" />
@@ -55,16 +57,16 @@ export const Navbar: React.FC = () => {
                 {isOwner ? (
                   <button
                     onClick={() => setShowBranchMenu(!showBranchMenu)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-950/60 border border-amber-800/40 hover:bg-amber-900/80 text-xs font-bold text-amber-100 transition-colors"
+                    className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-amber-950/60 border border-amber-800/40 hover:bg-amber-900/80 text-[11px] sm:text-xs font-bold text-amber-100 transition-colors"
                   >
-                    <Store className="w-3.5 h-3.5 text-amber-400" />
-                    <span className="max-w-[80px] sm:max-w-none truncate">{activeBranch ? activeBranch.name : 'Cabang'}</span>
-                    <ChevronDown className="w-3 h-3 text-amber-400" />
+                    <Store className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="max-w-[70px] xs:max-w-[100px] sm:max-w-none truncate">{activeBranch ? activeBranch.name : 'Cabang'}</span>
+                    <ChevronDown className="w-3 h-3 text-amber-400 shrink-0" />
                   </button>
                 ) : (
-                  <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-950/60 border border-amber-800/40 text-xs font-bold text-amber-200">
-                    <Store className="w-3.5 h-3.5 text-amber-400" />
-                    <span className="max-w-[80px] sm:max-w-none truncate">{activeBranch ? activeBranch.name : 'Cabang'}</span>
+                  <div className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-amber-950/60 border border-amber-800/40 text-[11px] sm:text-xs font-bold text-amber-200">
+                    <Store className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="max-w-[70px] xs:max-w-[100px] sm:max-w-none truncate">{activeBranch ? activeBranch.name : 'Cabang'}</span>
                   </div>
                 )}
 
