@@ -1,0 +1,427 @@
+import {
+  UserProfile,
+  Branch,
+  Category,
+  Product,
+  SaleTransaction,
+  Expense,
+  DailyReport,
+  AttendanceRecord,
+  PayrollSetting,
+  PayrollPeriod,
+  PayrollItem,
+  AppIdentitySettings,
+  AuditLog,
+} from '@/types';
+
+export const INITIAL_APP_SETTINGS: AppIdentitySettings = {
+  app_name: 'Mister Pancong Lumer',
+  brand_owner: 'By Manage Nafa Family',
+  logo_url: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=200&h=200&q=80',
+  primary_color: '#6b3e26',
+  secondary_color: '#f5e6d3',
+  accent_color: '#e65100',
+};
+
+export const MOCK_BRANCHES: Branch[] = [
+  {
+    id: 'br-1',
+    code: 'CDD',
+    name: 'Cidodol',
+    address: 'Jl. Cidodol Raya No. 12, Kebayoran Lama, Jakarta Selatan',
+    phone: '081234567890',
+    is_active: true,
+    initial_cash_default: 100000,
+    created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
+  },
+  {
+    id: 'br-2',
+    code: 'BLJ',
+    name: 'Blujami',
+    address: 'Jl. Blujami Raya No. 45, Pesanggrahan, Jakarta Selatan',
+    phone: '081987654321',
+    is_active: true,
+    initial_cash_default: 100000,
+    created_at: new Date(Date.now() - 25 * 86400000).toISOString(),
+  },
+];
+
+export const MOCK_USERS: UserProfile[] = [
+  {
+    id: 'usr-owner',
+    username: 'owner',
+    email: 'owner@panconglumer.com',
+    password: '123',
+    full_name: 'Hj. Nafa (Owner)',
+    phone: '08111111111',
+    role: 'owner',
+  },
+  {
+    id: 'usr-admin-pusat',
+    username: 'adminpusat',
+    email: 'admin.pusat@panconglumer.com',
+    password: '123',
+    full_name: 'Rian (Admin Pusat)',
+    phone: '08222222222',
+    role: 'admin_pusat',
+  },
+  {
+    id: 'usr-admin-cdd',
+    username: 'admincdd',
+    email: 'admin.cidodol@panconglumer.com',
+    password: '123',
+    full_name: 'Budi (Admin Cidodol)',
+    phone: '08333333333',
+    role: 'admin_cabang',
+  },
+  {
+    id: 'usr-seller-cdd',
+    username: 'kasircdd',
+    email: 'kasir.cidodol@panconglumer.com',
+    password: '123',
+    full_name: 'Siti Kasir (Penjual Cidodol)',
+    phone: '08444444444',
+    role: 'penjual',
+  },
+  {
+    id: 'usr-seller-blj',
+    username: 'kasirblj',
+    email: 'kasir.blujami@panconglumer.com',
+    password: '123',
+    full_name: 'Andi Kasir (Penjual Blujami)',
+    phone: '08555555555',
+    role: 'penjual',
+  },
+];
+
+export const MOCK_EMPLOYEE_ASSIGNMENTS = [
+  { id: 'ea-1', user_id: 'usr-seller-cdd', branch_id: 'br-1' },
+  { id: 'ea-2', user_id: 'usr-admin-cdd', branch_id: 'br-1' },
+  { id: 'ea-3', user_id: 'usr-seller-blj', branch_id: 'br-2' },
+];
+
+export const MOCK_CATEGORIES: Category[] = [
+  { id: 'cat-1', name: 'Pancong Lumer', slug: 'pancong-lumer', sort_order: 1 },
+  { id: 'cat-2', name: 'Pancong Crispy', slug: 'pancong-crispy', sort_order: 2 },
+  { id: 'cat-3', name: 'Minuman Segar', slug: 'minuman', sort_order: 3 },
+  { id: 'cat-4', name: 'Topping Ekstra', slug: 'topping', sort_order: 4 },
+];
+
+export const MOCK_PRODUCTS: Product[] = [
+  {
+    id: 'prod-1',
+    category_id: 'cat-1',
+    category_name: 'Pancong Lumer',
+    name: 'Pancong Lumer Signature',
+    description: 'Pancong khas adonan khusus, pilihan lumer setengah matang atau matang sempurna.',
+    image_url: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=500&q=80',
+    base_price: 12000,
+    is_active: true,
+    variants: [
+      { id: 'v-1-1', product_id: 'prod-1', variant_type: 'rasa', name: 'Cokelat Lumer', additional_price: 3000, is_available: true },
+      { id: 'v-1-2', product_id: 'prod-1', variant_type: 'rasa', name: 'Keju Cheddar Parut', additional_price: 3000, is_available: true },
+      { id: 'v-1-3', product_id: 'prod-1', variant_type: 'rasa', name: 'Tiramisu Smooth', additional_price: 4000, is_available: true },
+      { id: 'v-1-4', product_id: 'prod-1', variant_type: 'rasa', name: 'Matcha Kyoto', additional_price: 4000, is_available: true },
+      { id: 'v-1-5', product_id: 'prod-1', variant_type: 'rasa', name: 'Original Gula Halus', additional_price: 0, is_available: true },
+      { id: 'v-1-6', product_id: 'prod-1', variant_type: 'tingkat_kematangan', name: 'Lumer 1/2 Matang (Lumer Melt)', additional_price: 0, is_available: true },
+      { id: 'v-1-7', product_id: 'prod-1', variant_type: 'tingkat_kematangan', name: 'Matang Sempurna', additional_price: 0, is_available: true },
+    ],
+  },
+  {
+    id: 'prod-2',
+    category_id: 'cat-2',
+    category_name: 'Pancong Crispy',
+    name: 'Pancong Crispy Crunch',
+    description: 'Tekstur renyah garing di pinggir, lembut kenyal di tengah.',
+    image_url: 'https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&w=500&q=80',
+    base_price: 13000,
+    is_active: true,
+    variants: [
+      { id: 'v-2-1', product_id: 'prod-2', variant_type: 'rasa', name: 'Cokelat Keju Melt', additional_price: 4000, is_available: true },
+      { id: 'v-2-2', product_id: 'prod-2', variant_type: 'rasa', name: 'Red Velvet Cheese', additional_price: 4000, is_available: true },
+      { id: 'v-2-3', product_id: 'prod-2', variant_type: 'rasa', name: 'Taro Milky', additional_price: 4000, is_available: true },
+    ],
+  },
+  {
+    id: 'prod-3',
+    category_id: 'cat-3',
+    category_name: 'Minuman Segar',
+    name: 'Es Teh Manis Pancong',
+    description: 'Es teh melati segar manis pas.',
+    image_url: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=500&q=80',
+    base_price: 5000,
+    is_active: true,
+    variants: [
+      { id: 'v-3-1', product_id: 'prod-3', variant_type: 'ukuran', name: 'Cup Regular (16oz)', additional_price: 0, is_available: true },
+      { id: 'v-3-2', product_id: 'prod-3', variant_type: 'ukuran', name: 'Cup Jumbo (22oz)', additional_price: 3000, is_available: true },
+    ],
+  },
+  {
+    id: 'prod-4',
+    category_id: 'cat-3',
+    category_name: 'Minuman Segar',
+    name: 'Es Kopi Susu Lumer',
+    description: 'Kopi susu gula aren creamy penyegar dahaga.',
+    image_url: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=500&q=80',
+    base_price: 12000,
+    is_active: true,
+    variants: [
+      { id: 'v-4-1', product_id: 'prod-4', variant_type: 'manis', name: 'Normal Sugar', additional_price: 0, is_available: true },
+      { id: 'v-4-2', product_id: 'prod-4', variant_type: 'manis', name: 'Less Sugar 50%', additional_price: 0, is_available: true },
+    ],
+  },
+];
+
+export const MOCK_SALES: SaleTransaction[] = [
+  {
+    id: 'trx-101',
+    transaction_number: 'TRX-CDD-20261010-001',
+    branch_id: 'br-1',
+    branch_name: 'Cidodol',
+    seller_id: 'usr-seller-cdd',
+    seller_name: 'Siti Kasir (Penjual Cidodol)',
+    subtotal: 33000,
+    discount: 0,
+    total_amount: 33000,
+    payment_method: 'tunai',
+    cash_received: 50000,
+    cash_change: 17000,
+    status: 'completed',
+    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    items: [
+      {
+        product_name_snapshot: 'Pancong Lumer Signature',
+        unit_price_snapshot: 15000,
+        quantity: 1,
+        subtotal: 15000,
+        variant_details_snapshot: [
+          { variant_id: 'v-1-1', variant_type: 'rasa', name: 'Cokelat Lumer', additional_price: 3000 },
+        ],
+      },
+      {
+        product_name_snapshot: 'Pancong Crispy Crunch',
+        unit_price_snapshot: 17000,
+        quantity: 1,
+        subtotal: 17000,
+        variant_details_snapshot: [
+          { variant_id: 'v-2-1', variant_type: 'rasa', name: 'Cokelat Keju Melt', additional_price: 4000 },
+        ],
+      },
+      {
+        product_name_snapshot: 'Es Teh Manis Pancong',
+        unit_price_snapshot: 5000,
+        quantity: 1,
+        subtotal: 5000,
+        variant_details_snapshot: [],
+      },
+    ],
+  },
+  {
+    id: 'trx-102',
+    transaction_number: 'TRX-BLJ-20261010-002',
+    branch_id: 'br-2',
+    branch_name: 'Blujami',
+    seller_id: 'usr-seller-blj',
+    seller_name: 'Andi Kasir (Penjual Blujami)',
+    subtotal: 45000,
+    discount: 0,
+    total_amount: 45000,
+    payment_method: 'qris',
+    cash_received: 45000,
+    cash_change: 0,
+    status: 'completed',
+    created_at: new Date(Date.now() - 3600000 * 1).toISOString(),
+    items: [
+      {
+        product_name_snapshot: 'Pancong Lumer Signature',
+        unit_price_snapshot: 16000,
+        quantity: 2,
+        subtotal: 32000,
+        variant_details_snapshot: [
+          { variant_id: 'v-1-3', variant_type: 'rasa', name: 'Tiramisu Smooth', additional_price: 4000 },
+        ],
+      },
+      {
+        product_name_snapshot: 'Es Kopi Susu Lumer',
+        unit_price_snapshot: 12000,
+        quantity: 1,
+        subtotal: 12000,
+        variant_details_snapshot: [],
+      },
+    ],
+  },
+];
+
+export const MOCK_EXPENSES: Expense[] = [
+  {
+    id: 'exp-1',
+    branch_id: 'br-1',
+    branch_name: 'Cidodol',
+    category_id: 'ec-1',
+    category_name: 'Bahan Baku',
+    title: 'Beli Tepung Terigu & Keju Parut',
+    amount: 75000,
+    payment_method: 'kas_cabang',
+    notes: 'Beli di Toko Plastik Jaya Cidodol',
+    receipt_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&w=400&q=80',
+    created_by: 'usr-seller-cdd',
+    created_by_name: 'Siti Kasir',
+    status: 'approved',
+    expense_date: new Date().toISOString().split('T')[0],
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'exp-2',
+    branch_id: 'br-2',
+    branch_name: 'Blujami',
+    category_id: 'ec-3',
+    category_name: 'Es & Bahan Tambahan',
+    title: 'Es Batu Kristal 2 Bal',
+    amount: 24000,
+    payment_method: 'uang_pribadi',
+    notes: 'Menggunakan uang pribadi Andi (minta reimbursement)',
+    receipt_url: '',
+    created_by: 'usr-seller-blj',
+    created_by_name: 'Andi Kasir',
+    status: 'pending',
+    expense_date: new Date().toISOString().split('T')[0],
+    created_at: new Date().toISOString(),
+  },
+];
+
+export const MOCK_DAILY_REPORTS: DailyReport[] = [
+  {
+    id: 'dr-1',
+    branch_id: 'br-1',
+    branch_name: 'Cidodol',
+    report_date: new Date().toISOString().split('T')[0],
+    submitted_by: 'usr-seller-cdd',
+    submitted_by_name: 'Siti Kasir',
+    gross_sales: 380000,
+    total_transactions: 14,
+    cash_sales: 260000,
+    non_cash_sales: 120000,
+    branch_cash_expenses: 75000,
+    initial_cash_balance: 100000,
+    expected_cash: 285000,
+    actual_cash: 285000,
+    cash_difference: 0,
+    notes: 'Semua aman, kas sesuai tepat.',
+    status: 'approved',
+    reviewed_by: 'usr-owner',
+    reviewed_at: new Date().toISOString(),
+  },
+];
+
+export const MOCK_ATTENDANCE: AttendanceRecord[] = [
+  {
+    id: 'att-1',
+    user_id: 'usr-seller-cdd',
+    user_name: 'Siti Kasir',
+    user_role: 'penjual',
+    branch_id: 'br-1',
+    branch_name: 'Cidodol',
+    date: new Date().toISOString().split('T')[0],
+    clock_in: new Date(Date.now() - 8 * 3600000).toISOString(),
+    clock_out: new Date().toISOString(),
+    status: 'hadir',
+    notes: 'Shift Pagi tepat waktu.',
+  },
+  {
+    id: 'att-2',
+    user_id: 'usr-seller-blj',
+    user_name: 'Andi Kasir',
+    user_role: 'penjual',
+    branch_id: 'br-2',
+    branch_name: 'Blujami',
+    date: new Date().toISOString().split('T')[0],
+    clock_in: new Date(Date.now() - 7 * 3600000).toISOString(),
+    clock_out: undefined,
+    status: 'hadir',
+    notes: 'Shift Pagi sedang berlangsung.',
+  },
+];
+
+export const MOCK_PAYROLL_SETTINGS: PayrollSetting[] = [
+  {
+    id: 'ps-1',
+    user_id: 'usr-seller-cdd',
+    user_name: 'Siti Kasir',
+    base_salary: 1500000,
+    base_salary_type: 'monthly',
+    transport_allowance: 25000,
+    transport_type: 'per_day',
+    meal_allowance: 25000,
+    meal_type: 'per_day',
+    custom_components: [
+      { id: 'cc-1', name: 'Uang Seragam Baju', amount: 100000, type: 'bonus' },
+      { id: 'cc-2', name: 'Bonus Kedisiplinan', amount: 150000, type: 'bonus' },
+    ],
+    bonus_rule: 'Bonus target omzet > Rp 10 Juta / bulan',
+    sales_commission_rate: 1.5,
+  },
+  {
+    id: 'ps-2',
+    user_id: 'usr-seller-blj',
+    user_name: 'Andi Kasir',
+    base_salary: 1500000,
+    base_salary_type: 'monthly',
+    transport_allowance: 25000,
+    transport_type: 'per_day',
+    meal_allowance: 25000,
+    meal_type: 'per_day',
+    custom_components: [
+      { id: 'cc-3', name: 'Uang Baju Seragam', amount: 100000, type: 'bonus' },
+    ],
+    bonus_rule: 'Bonus target omzet',
+    sales_commission_rate: 1.5,
+  },
+];
+
+export const MOCK_PAYROLL_PERIODS: PayrollPeriod[] = [
+  {
+    id: 'pp-1',
+    name: 'Gaji Oktober 2026',
+    start_date: '2026-10-01',
+    end_date: '2026-10-31',
+    status: 'draft',
+  },
+];
+
+export const MOCK_PAYROLL_ITEMS: PayrollItem[] = [
+  {
+    id: 'pi-1',
+    payroll_period_id: 'pp-1',
+    user_id: 'usr-seller-cdd',
+    user_name: 'Siti Kasir (Penjual Cidodol)',
+    branch_id: 'br-1',
+    branch_name: 'Cidodol',
+    days_present: 24,
+    base_salary_calculated: 1500000,
+    transport_calculated: 600000,
+    meal_calculated: 600000,
+    bonus_amount: 150000,
+    custom_components: [
+      { id: 'cc-1', name: 'Uang Seragam Baju', amount: 100000, type: 'bonus' },
+      { id: 'cc-2', name: 'Bonus Kedisiplinan', amount: 150000, type: 'bonus' },
+    ],
+    sales_incentive_amount: 180000,
+    total_deductions: 0,
+    net_salary: 3130000,
+    status: 'draft',
+    adjustments: [],
+  },
+];
+
+export const MOCK_AUDIT_LOGS: AuditLog[] = [
+  {
+    id: 'log-1',
+    user_id: 'usr-owner',
+    user_name: 'Hj. Nafa (Owner)',
+    action: 'PENYETUJUAN_LAPORAN_HARIAN',
+    target_table: 'daily_reports',
+    target_id: 'dr-1',
+    details: { branch: 'Cidodol', date: new Date().toISOString().split('T')[0] },
+    created_at: new Date().toISOString(),
+  },
+];
