@@ -74,9 +74,8 @@ export const DataService = {
       for (const [key, value] of Object.entries(settings)) {
         await supabase.from('app_settings').upsert({ key, value: String(value) });
       }
-    } else {
-      setLocalItem('app_settings', updated);
     }
+    setLocalItem('app_settings', updated);
     return updated;
   },
 
@@ -85,9 +84,14 @@ export const DataService = {
     if (isSupabaseConfigured()) {
       const supabase = createClient();
       const { data, error } = await supabase.from('branches').select('*').order('created_at', { ascending: true });
-      if (!error && data) return data;
+      if (!error && data && data.length > 0) return data;
     }
-    return getLocalItem<Branch[]>('branches', MOCK_BRANCHES);
+    const local = getLocalItem<Branch[]>('branches', MOCK_BRANCHES);
+    if (!local || local.length === 0) {
+      setLocalItem('branches', MOCK_BRANCHES);
+      return MOCK_BRANCHES;
+    }
+    return local;
   },
 
   async saveBranch(branch: Partial<Branch>): Promise<Branch> {
@@ -114,11 +118,20 @@ export const DataService = {
       };
       branches.push(updatedBranch);
     }
+
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('branches').upsert(updatedBranch);
+    }
     setLocalItem('branches', branches);
     return updatedBranch;
   },
 
   async deleteBranch(branchId: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('branches').delete().eq('id', branchId);
+    }
     const branches = await this.getBranches();
     const filtered = branches.filter((b) => b.id !== branchId);
     setLocalItem('branches', filtered);
@@ -163,11 +176,20 @@ export const DataService = {
       };
       users.push(updatedUser);
     }
+
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('profiles').upsert(updatedUser);
+    }
     setLocalItem('users', users);
     return updatedUser;
   },
 
   async deleteUser(userId: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('profiles').delete().eq('id', userId);
+    }
     const users = await this.getUsers();
     const filtered = users.filter((u) => u.id !== userId);
     setLocalItem('users', filtered);
@@ -218,23 +240,72 @@ export const DataService = {
     if (isSupabaseConfigured()) {
       const supabase = createClient();
       const { data, error } = await supabase.from('categories').select('*').order('sort_order', { ascending: true });
-      if (!error && data) return data;
+      if (!error && data && data.length > 0) return data;
     }
-    return getLocalItem<Category[]>('categories', MOCK_CATEGORIES);
+    const local = getLocalItem<Category[]>('categories', MOCK_CATEGORIES);
+    if (!local || local.length === 0) {
+      setLocalItem('categories', MOCK_CATEGORIES);
+      return MOCK_CATEGORIES;
+    }
+    return local;
+  },
+
+  async saveCategory(category: Partial<Category>): Promise<Category> {
+    const list = await this.getCategories();
+    let updated: Category;
+    if (category.id) {
+      const idx = list.findIndex((c) => c.id === category.id);
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], ...category };
+        updated = list[idx];
+      } else {
+        updated = category as Category;
+      }
+    } else {
+      updated = {
+        id: `cat-${Date.now()}`,
+        name: category.name || 'Kategori Baru',
+        slug: (category.name || 'kategori').toLowerCase().replace(/\s+/g, '-'),
+        sort_order: list.length + 1,
+      };
+      list.push(updated);
+    }
+
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('categories').upsert(updated);
+    }
+    setLocalItem('categories', list);
+    return updated;
+  },
+
+  async deleteCategory(categoryId: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('categories').delete().eq('id', categoryId);
+    }
+    const list = await this.getCategories();
+    const filtered = list.filter((c) => c.id !== categoryId);
+    setLocalItem('categories', filtered);
   },
 
   async getProducts(): Promise<Product[]> {
     if (isSupabaseConfigured()) {
       const supabase = createClient();
       const { data, error } = await supabase.from('products').select('*, product_variants(*)');
-      if (!error && data) {
+      if (!error && data && data.length > 0) {
         return data.map((p: any) => ({
           ...p,
           variants: p.product_variants || [],
         }));
       }
     }
-    return getLocalItem<Product[]>('products', MOCK_PRODUCTS);
+    const local = getLocalItem<Product[]>('products', MOCK_PRODUCTS);
+    if (!local || local.length === 0) {
+      setLocalItem('products', MOCK_PRODUCTS);
+      return MOCK_PRODUCTS;
+    }
+    return local;
   },
 
   async saveProduct(product: Partial<Product>): Promise<Product> {
@@ -262,6 +333,31 @@ export const DataService = {
       };
       products.push(updated);
     }
+
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      const { data } = await supabase.from('products').upsert({
+        id: updated.id,
+        category_id: updated.category_id,
+        name: updated.name,
+        description: updated.description,
+        image_url: updated.image_url,
+        base_price: updated.base_price,
+        is_active: updated.is_active,
+      }).select().single();
+
+      if (data && updated.variants && updated.variants.length > 0) {
+        await supabase.from('product_variants').delete().eq('product_id', updated.id);
+        const vToInsert = updated.variants.map((v) => ({
+          product_id: updated.id,
+          variant_type: v.variant_type,
+          name: v.name,
+          additional_price: v.additional_price,
+        }));
+        await supabase.from('product_variants').insert(vToInsert);
+      }
+    }
+
     setLocalItem('products', products);
     return updated;
   },
@@ -340,6 +436,10 @@ export const DataService = {
   },
 
   async cancelTransaction(trxId: string, reason: string, cancelledByUserId: string, cancelledByName: string): Promise<boolean> {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('sales').update({ status: 'cancelled' }).eq('id', trxId);
+    }
     const sales = getLocalItem<SaleTransaction[]>('sales', MOCK_SALES);
     const idx = sales.findIndex((s) => s.id === trxId);
     if (idx !== -1) {
@@ -362,8 +462,15 @@ export const DataService = {
     return false;
   },
 
-  // 6. EXPENSES
+  // 6. EXPENSES (Full Supabase Sync)
   async getExpenses(branchId?: string): Promise<Expense[]> {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      let query = supabase.from('expenses').select('*').order('created_at', { ascending: false });
+      if (branchId) query = query.eq('branch_id', branchId);
+      const { data, error } = await query;
+      if (!error && data) return data;
+    }
     const expenses = getLocalItem<Expense[]>('expenses', MOCK_EXPENSES);
     if (branchId) return expenses.filter((e) => e.branch_id === branchId);
     return expenses;
@@ -375,6 +482,10 @@ export const DataService = {
       id: `exp-${Date.now()}`,
       created_at: new Date().toISOString(),
     };
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('expenses').insert(newExp);
+    }
     const list = getLocalItem<Expense[]>('expenses', MOCK_EXPENSES);
     list.unshift(newExp);
     setLocalItem('expenses', list);
@@ -410,17 +521,30 @@ export const DataService = {
       };
       list.unshift(updated);
     }
+
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('expenses').upsert(updated);
+    }
     setLocalItem('expenses', list);
     return updated;
   },
 
   async deleteExpense(expenseId: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('expenses').delete().eq('id', expenseId);
+    }
     const list = getLocalItem<Expense[]>('expenses', MOCK_EXPENSES);
     const filtered = list.filter((e) => e.id !== expenseId);
     setLocalItem('expenses', filtered);
   },
 
   async updateExpenseStatus(expenseId: string, status: 'approved' | 'rejected', approvedByUserId: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('expenses').update({ status, approved_by: approvedByUserId }).eq('id', expenseId);
+    }
     const list = getLocalItem<Expense[]>('expenses', MOCK_EXPENSES);
     const idx = list.findIndex((e) => e.id === expenseId);
     if (idx !== -1) {
@@ -432,6 +556,13 @@ export const DataService = {
 
   // 7. DAILY REPORTS
   async getDailyReports(branchId?: string): Promise<DailyReport[]> {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      let query = supabase.from('daily_reports').select('*').order('report_date', { ascending: false });
+      if (branchId) query = query.eq('branch_id', branchId);
+      const { data, error } = await query;
+      if (!error && data) return data;
+    }
     const list = getLocalItem<DailyReport[]>('daily_reports', MOCK_DAILY_REPORTS);
     if (branchId) return list.filter((r) => r.branch_id === branchId);
     return list;
@@ -447,6 +578,11 @@ export const DataService = {
       created_at: new Date().toISOString(),
     };
 
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('daily_reports').upsert(newReport);
+    }
+
     if (existingIdx !== -1) {
       list[existingIdx] = newReport;
     } else {
@@ -458,6 +594,10 @@ export const DataService = {
   },
 
   async updateDailyReportStatus(reportId: string, status: 'approved' | 'revision_requested', reviewerId: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('daily_reports').update({ status, reviewed_by: reviewerId, reviewed_at: new Date().toISOString() }).eq('id', reportId);
+    }
     const list = getLocalItem<DailyReport[]>('daily_reports', MOCK_DAILY_REPORTS);
     const idx = list.findIndex((r) => r.id === reportId);
     if (idx !== -1) {
@@ -470,6 +610,14 @@ export const DataService = {
 
   // 8. ATTENDANCE
   async getAttendance(branchId?: string, date?: string): Promise<AttendanceRecord[]> {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      let query = supabase.from('attendance').select('*');
+      if (branchId) query = query.eq('branch_id', branchId);
+      if (date) query = query.eq('date', date);
+      const { data, error } = await query;
+      if (!error && data) return data;
+    }
     const list = getLocalItem<AttendanceRecord[]>('attendance', MOCK_ATTENDANCE);
     return list.filter((a) => {
       if (branchId && a.branch_id !== branchId) return false;
@@ -501,6 +649,11 @@ export const DataService = {
       created_at: new Date().toISOString(),
     };
 
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('attendance').upsert(record);
+    }
+
     if (existingIdx !== -1) list[existingIdx] = record;
     else list.unshift(record);
 
@@ -514,6 +667,10 @@ export const DataService = {
     const idx = list.findIndex((a) => a.user_id === userId && a.date === today);
     if (idx !== -1) {
       list[idx].clock_out = new Date().toISOString();
+      if (isSupabaseConfigured()) {
+        const supabase = createClient();
+        await supabase.from('attendance').update({ clock_out: list[idx].clock_out }).eq('id', list[idx].id);
+      }
       setLocalItem('attendance', list);
       return list[idx];
     }
@@ -522,6 +679,11 @@ export const DataService = {
 
   // 9. PAYROLL
   async getPayrollSettings(): Promise<PayrollSetting[]> {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      const { data, error } = await supabase.from('payroll_settings').select('*');
+      if (!error && data) return data;
+    }
     return getLocalItem<PayrollSetting[]>('payroll_settings', MOCK_PAYROLL_SETTINGS);
   },
 
@@ -550,11 +712,21 @@ export const DataService = {
       };
       list.push(updated);
     }
+
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('payroll_settings').upsert(updated);
+    }
     setLocalItem('payroll_settings', list);
     return updated;
   },
 
   async getPayrollItems(): Promise<PayrollItem[]> {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      const { data, error } = await supabase.from('payroll_items').select('*');
+      if (!error && data) return data;
+    }
     return getLocalItem<PayrollItem[]>('payroll_items', MOCK_PAYROLL_ITEMS);
   },
 
@@ -585,6 +757,11 @@ export const DataService = {
         created_at: new Date().toISOString(),
       };
       list.push(updated);
+    }
+
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      await supabase.from('payroll_items').upsert(updated);
     }
     setLocalItem('payroll_items', list);
     return updated;
