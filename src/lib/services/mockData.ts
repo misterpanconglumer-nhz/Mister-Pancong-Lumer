@@ -48,7 +48,7 @@ export const MOCK_BRANCHES: Branch[] = [
 
 export const MOCK_USERS: UserProfile[] = [
   {
-    id: 'usr-owner',
+    id: '11111111-1111-1111-1111-111111111111',
     username: 'owner',
     email: 'owner@panconglumer.com',
     password: '123',
@@ -57,7 +57,7 @@ export const MOCK_USERS: UserProfile[] = [
     role: 'owner',
   },
   {
-    id: 'usr-admin-pusat',
+    id: '22222222-2222-2222-2222-222222222222',
     username: 'adminpusat',
     email: 'admin.pusat@panconglumer.com',
     password: '123',
@@ -66,7 +66,7 @@ export const MOCK_USERS: UserProfile[] = [
     role: 'admin_pusat',
   },
   {
-    id: 'usr-admin-cdd',
+    id: '33333333-3333-3333-3333-333333333333',
     username: 'admincdd',
     email: 'admin.cidodol@panconglumer.com',
     password: '123',
@@ -75,7 +75,7 @@ export const MOCK_USERS: UserProfile[] = [
     role: 'admin_cabang',
   },
   {
-    id: 'usr-seller-cdd',
+    id: '44444444-4444-4444-4444-444444444444',
     username: 'kasircdd',
     email: 'kasir.cidodol@panconglumer.com',
     password: '123',
@@ -84,7 +84,7 @@ export const MOCK_USERS: UserProfile[] = [
     role: 'penjual',
   },
   {
-    id: 'usr-seller-blj',
+    id: '55555555-5555-5555-5555-555555555555',
     username: 'kasirblj',
     email: 'kasir.blujami@panconglumer.com',
     password: '123',

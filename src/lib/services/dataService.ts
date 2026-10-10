@@ -164,10 +164,14 @@ export const DataService = {
         updatedUser = user as UserProfile;
       }
     } else {
+      const generatedUuid = typeof crypto !== 'undefined' && crypto.randomUUID 
+        ? crypto.randomUUID() 
+        : `99999999-9999-4999-8999-${Date.now().toString().padStart(12, '0').slice(-12)}`;
+      
       updatedUser = {
-        id: `usr-${Date.now()}`,
-        username: user.username || user.email?.split('@')[0] || `user${Date.now()}`,
-        email: user.email || 'karyawan@panconglumer.com',
+        id: generatedUuid,
+        username: user.username?.toLowerCase() || user.email?.split('@')[0]?.toLowerCase() || `user${Date.now()}`,
+        email: user.email || `${user.username || 'user'}@panconglumer.com`,
         password: user.password || '123',
         full_name: user.full_name || 'Karyawan Baru',
         phone: user.phone || '',
