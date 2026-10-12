@@ -19,9 +19,14 @@ export const metadata: Metadata = {
   description: 'Sistem POS, Penjualan, Laporan Harian, Absensi, dan Penggajian Terintegrasi Multi-Cabang',
   manifest: '/manifest.json',
   icons: {
-    icon: '/logo.jpg',
-    shortcut: '/logo.jpg',
-    apple: '/logo.jpg',
+    icon: [
+      { url: '/favicon.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    shortcut: '/favicon.png',
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
   },
   appleWebApp: {
     capable: true,
