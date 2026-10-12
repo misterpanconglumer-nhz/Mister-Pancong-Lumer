@@ -172,181 +172,19 @@ export const MOCK_PRODUCTS: Product[] = [
   },
 ];
 
-export const MOCK_SALES: SaleTransaction[] = [
-  {
-    id: 'trx-101',
-    transaction_number: 'TRX-CDD-20261010-001',
-    branch_id: 'br-1',
-    branch_name: 'Cidodol',
-    seller_id: 'usr-seller-cdd',
-    seller_name: 'Siti Kasir (Penjual Cidodol)',
-    subtotal: 33000,
-    discount: 0,
-    total_amount: 33000,
-    payment_method: 'tunai',
-    cash_received: 50000,
-    cash_change: 17000,
-    status: 'completed',
-    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-    items: [
-      {
-        product_name_snapshot: 'Pancong Lumer Signature',
-        unit_price_snapshot: 15000,
-        quantity: 1,
-        subtotal: 15000,
-        variant_details_snapshot: [
-          { variant_id: 'v-1-1', variant_type: 'rasa', name: 'Cokelat Lumer', additional_price: 3000 },
-        ],
-      },
-      {
-        product_name_snapshot: 'Pancong Crispy Crunch',
-        unit_price_snapshot: 17000,
-        quantity: 1,
-        subtotal: 17000,
-        variant_details_snapshot: [
-          { variant_id: 'v-2-1', variant_type: 'rasa', name: 'Cokelat Keju Melt', additional_price: 4000 },
-        ],
-      },
-      {
-        product_name_snapshot: 'Es Teh Manis Pancong',
-        unit_price_snapshot: 5000,
-        quantity: 1,
-        subtotal: 5000,
-        variant_details_snapshot: [],
-      },
-    ],
-  },
-  {
-    id: 'trx-102',
-    transaction_number: 'TRX-BLJ-20261010-002',
-    branch_id: 'br-2',
-    branch_name: 'Blujami',
-    seller_id: 'usr-seller-blj',
-    seller_name: 'Andi Kasir (Penjual Blujami)',
-    subtotal: 45000,
-    discount: 0,
-    total_amount: 45000,
-    payment_method: 'qris',
-    cash_received: 45000,
-    cash_change: 0,
-    status: 'completed',
-    created_at: new Date(Date.now() - 3600000 * 1).toISOString(),
-    items: [
-      {
-        product_name_snapshot: 'Pancong Lumer Signature',
-        unit_price_snapshot: 16000,
-        quantity: 2,
-        subtotal: 32000,
-        variant_details_snapshot: [
-          { variant_id: 'v-1-3', variant_type: 'rasa', name: 'Tiramisu Smooth', additional_price: 4000 },
-        ],
-      },
-      {
-        product_name_snapshot: 'Es Kopi Susu Lumer',
-        unit_price_snapshot: 12000,
-        quantity: 1,
-        subtotal: 12000,
-        variant_details_snapshot: [],
-      },
-    ],
-  },
-];
+export const MOCK_SALES: SaleTransaction[] = [];
 
-export const MOCK_EXPENSES: Expense[] = [
-  {
-    id: 'exp-1',
-    branch_id: 'br-1',
-    branch_name: 'Cidodol',
-    category_id: 'ec-1',
-    category_name: 'Bahan Baku',
-    title: 'Beli Tepung Terigu & Keju Parut',
-    amount: 75000,
-    payment_method: 'kas_cabang',
-    notes: 'Beli di Toko Plastik Jaya Cidodol',
-    receipt_url: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&w=400&q=80',
-    created_by: 'usr-seller-cdd',
-    created_by_name: 'Siti Kasir',
-    status: 'approved',
-    expense_date: new Date().toISOString().split('T')[0],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'exp-2',
-    branch_id: 'br-2',
-    branch_name: 'Blujami',
-    category_id: 'ec-3',
-    category_name: 'Es & Bahan Tambahan',
-    title: 'Es Batu Kristal 2 Bal',
-    amount: 24000,
-    payment_method: 'uang_pribadi',
-    notes: 'Menggunakan uang pribadi Andi (minta reimbursement)',
-    receipt_url: '',
-    created_by: 'usr-seller-blj',
-    created_by_name: 'Andi Kasir',
-    status: 'pending',
-    expense_date: new Date().toISOString().split('T')[0],
-    created_at: new Date().toISOString(),
-  },
-];
+export const MOCK_EXPENSES: Expense[] = [];
 
-export const MOCK_DAILY_REPORTS: DailyReport[] = [
-  {
-    id: 'dr-1',
-    branch_id: 'br-1',
-    branch_name: 'Cidodol',
-    report_date: new Date().toISOString().split('T')[0],
-    submitted_by: 'usr-seller-cdd',
-    submitted_by_name: 'Siti Kasir',
-    gross_sales: 380000,
-    total_transactions: 14,
-    cash_sales: 260000,
-    non_cash_sales: 120000,
-    branch_cash_expenses: 75000,
-    initial_cash_balance: 100000,
-    expected_cash: 285000,
-    actual_cash: 285000,
-    cash_difference: 0,
-    notes: 'Semua aman, kas sesuai tepat.',
-    status: 'approved',
-    reviewed_by: 'usr-owner',
-    reviewed_at: new Date().toISOString(),
-  },
-];
+export const MOCK_DAILY_REPORTS: DailyReport[] = [];
 
-export const MOCK_ATTENDANCE: AttendanceRecord[] = [
-  {
-    id: 'att-1',
-    user_id: 'usr-seller-cdd',
-    user_name: 'Siti Kasir',
-    user_role: 'penjual',
-    branch_id: 'br-1',
-    branch_name: 'Cidodol',
-    date: new Date().toISOString().split('T')[0],
-    clock_in: new Date(Date.now() - 8 * 3600000).toISOString(),
-    clock_out: new Date().toISOString(),
-    status: 'hadir',
-    notes: 'Shift Pagi tepat waktu.',
-  },
-  {
-    id: 'att-2',
-    user_id: 'usr-seller-blj',
-    user_name: 'Andi Kasir',
-    user_role: 'penjual',
-    branch_id: 'br-2',
-    branch_name: 'Blujami',
-    date: new Date().toISOString().split('T')[0],
-    clock_in: new Date(Date.now() - 7 * 3600000).toISOString(),
-    clock_out: undefined,
-    status: 'hadir',
-    notes: 'Shift Pagi sedang berlangsung.',
-  },
-];
+export const MOCK_ATTENDANCE: AttendanceRecord[] = [];
 
 export const MOCK_PAYROLL_SETTINGS: PayrollSetting[] = [
   {
     id: 'ps-1',
-    user_id: 'usr-seller-cdd',
-    user_name: 'Siti Kasir',
+    user_id: '44444444-4444-4444-4444-444444444444',
+    user_name: 'Siti Kasir (Penjual Cidodol)',
     base_salary: 1500000,
     base_salary_type: 'monthly',
     transport_allowance: 25000,
@@ -362,8 +200,8 @@ export const MOCK_PAYROLL_SETTINGS: PayrollSetting[] = [
   },
   {
     id: 'ps-2',
-    user_id: 'usr-seller-blj',
-    user_name: 'Andi Kasir',
+    user_id: '55555555-5555-5555-5555-555555555555',
+    user_name: 'Andi Kasir (Penjual Blujami)',
     base_salary: 1500000,
     base_salary_type: 'monthly',
     transport_allowance: 25000,
@@ -378,50 +216,9 @@ export const MOCK_PAYROLL_SETTINGS: PayrollSetting[] = [
   },
 ];
 
-export const MOCK_PAYROLL_PERIODS: PayrollPeriod[] = [
-  {
-    id: 'pp-1',
-    name: 'Gaji Oktober 2026',
-    start_date: '2026-10-01',
-    end_date: '2026-10-31',
-    status: 'draft',
-  },
-];
+export const MOCK_PAYROLL_PERIODS: PayrollPeriod[] = [];
 
-export const MOCK_PAYROLL_ITEMS: PayrollItem[] = [
-  {
-    id: 'pi-1',
-    payroll_period_id: 'pp-1',
-    user_id: 'usr-seller-cdd',
-    user_name: 'Siti Kasir (Penjual Cidodol)',
-    branch_id: 'br-1',
-    branch_name: 'Cidodol',
-    days_present: 24,
-    base_salary_calculated: 1500000,
-    transport_calculated: 600000,
-    meal_calculated: 600000,
-    bonus_amount: 150000,
-    custom_components: [
-      { id: 'cc-1', name: 'Uang Seragam Baju', amount: 100000, type: 'bonus' },
-      { id: 'cc-2', name: 'Bonus Kedisiplinan', amount: 150000, type: 'bonus' },
-    ],
-    sales_incentive_amount: 180000,
-    total_deductions: 0,
-    net_salary: 3130000,
-    status: 'draft',
-    adjustments: [],
-  },
-];
+export const MOCK_PAYROLL_ITEMS: PayrollItem[] = [];
 
-export const MOCK_AUDIT_LOGS: AuditLog[] = [
-  {
-    id: 'log-1',
-    user_id: 'usr-owner',
-    user_name: 'Hj. Nafa (Owner)',
-    action: 'PENYETUJUAN_LAPORAN_HARIAN',
-    target_table: 'daily_reports',
-    target_id: 'dr-1',
-    details: { branch: 'Cidodol', date: new Date().toISOString().split('T')[0] },
-    created_at: new Date().toISOString(),
-  },
-];
+export const MOCK_AUDIT_LOGS: AuditLog[] = [];
+

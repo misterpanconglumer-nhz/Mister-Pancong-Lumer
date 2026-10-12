@@ -34,7 +34,17 @@ function getLocalItem<T>(key: string, defaultValue: T): T {
   if (typeof window === 'undefined') return defaultValue;
   try {
     const item = localStorage.getItem(`mpl_${key}`);
-    return item ? JSON.parse(item) : defaultValue;
+    if (!item) return defaultValue;
+    const parsed = JSON.parse(item);
+    if (Array.isArray(parsed)) {
+      const dummyIds = new Set(['dr-1', 'trx-101', 'trx-102', 'exp-1', 'exp-2', 'att-1', 'att-2', 'pi-1', 'pp-1', 'log-1']);
+      const cleaned = parsed.filter((entry: any) => !dummyIds.has(entry?.id));
+      if (cleaned.length !== parsed.length) {
+        localStorage.setItem(`mpl_${key}`, JSON.stringify(cleaned));
+        return cleaned as unknown as T;
+      }
+    }
+    return parsed;
   } catch {
     return defaultValue;
   }
@@ -799,5 +809,118 @@ export const DataService = {
 
   async getAuditLogs(): Promise<AuditLog[]> {
     return getLocalItem<AuditLog[]>('audit_logs', MOCK_AUDIT_LOGS);
+  },
+
+  // 11. DEMO PURGE & CLOUD SYNC
+  async clearAllDemoHistory(): Promise<void> {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('mpl_sales');
+      localStorage.removeItem('mpl_expenses');
+      localStorage.removeItem('mpl_daily_reports');
+      localStorage.removeItem('mpl_attendance');
+      localStorage.removeItem('mpl_payroll_items');
+      localStorage.removeItem('mpl_payroll_periods');
+      localStorage.removeItem('mpl_audit_logs');
+    }
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      try {
+        await supabase.from('sale_items').delete().neq('id', '');
+        await supabase.from('sales').delete().neq('id', '');
+        await supabase.from('expenses').delete().neq('id', '');
+        await supabase.from('daily_reports').delete().neq('id', '');
+        await supabase.from('attendance').delete().neq('id', '');
+        await supabase.from('payroll_items').delete().neq('id', '');
+        await supabase.from('payroll_periods').delete().neq('id', '');
+      } catch (e) {
+        console.warn('Error clearing Supabase demo history:', e);
+      }
+    }
+  },
+
+  async syncLocalDataToSupabase(): Promise<{ success: boolean; message: string; details?: any }> {
+    if (!isSupabaseConfigured()) {
+      return { success: false, message: 'Koneksi Supabase belum aktif. Pastikan URL dan Anon Key sudah dimasukkan.' };
+    }
+    const supabase = createClient();
+    try {
+      // 1. Sync App Settings
+      const appSettings = await this.getAppSettings();
+      for (const [key, value] of Object.entries(appSettings)) {
+        await supabase.from('app_settings').upsert({ key, value: String(value) });
+      }
+
+      // 2. Sync Categories
+      const categories = await this.getCategories();
+      for (const cat of categories) {
+        await supabase.from('categories').upsert({
+          id: cat.id,
+          name: cat.name,
+          slug: cat.slug,
+          sort_order: cat.sort_order,
+        });
+      }
+
+      // 3. Sync Products & Variants
+      const products = await this.getProducts();
+      for (const prod of products) {
+        await supabase.from('products').upsert({
+          id: prod.id,
+          category_id: prod.category_id,
+          name: prod.name,
+          description: prod.description,
+          image_url: prod.image_url,
+          base_price: prod.base_price,
+          is_active: prod.is_active,
+        });
+
+        if (prod.variants && prod.variants.length > 0) {
+          await supabase.from('product_variants').delete().eq('product_id', prod.id);
+          const vToInsert = prod.variants.map((v) => ({
+            product_id: prod.id,
+            variant_type: v.variant_type,
+            name: v.name,
+            additional_price: v.additional_price,
+            is_available: v.is_available ?? true,
+          }));
+          await supabase.from('product_variants').insert(vToInsert);
+        }
+      }
+
+      // 4. Sync Branches
+      const branches = await this.getBranches();
+      for (const b of branches) {
+        await supabase.from('branches').upsert({
+          id: b.id,
+          code: b.code,
+          name: b.name,
+          address: b.address,
+          phone: b.phone,
+          is_active: b.is_active,
+          initial_cash_default: b.initial_cash_default,
+        });
+      }
+
+      // 5. Sync Profiles / Users
+      const users = await this.getUsers();
+      for (const u of users) {
+        await supabase.from('profiles').upsert({
+          id: u.id,
+          username: u.username,
+          email: u.email,
+          password: u.password,
+          full_name: u.full_name,
+          phone: u.phone,
+          role: u.role,
+        });
+      }
+
+      return {
+        success: true,
+        message: `Berhasil menyinkronkan seluruh data ke Supabase Cloud! (${categories.length} Kategori, ${products.length} Menu Produk, ${branches.length} Cabang, ${users.length} Akun)`,
+      };
+    } catch (err: any) {
+      return { success: false, message: `Gagal sinkronisasi data: ${err?.message || err}` };
+    }
   },
 };
