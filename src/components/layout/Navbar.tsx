@@ -23,7 +23,14 @@ export const Navbar: React.FC = () => {
             {/* Logo & Brand Name */}
             <Link href={isOwner ? '/dashboard' : '/pos'} className="flex items-center gap-2.5 group shrink-0">
               <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-black border border-amber-500/40 p-0.5 shadow-md flex items-center justify-center shrink-0 overflow-hidden">
-                <img src={settings.logo_url || '/logo.jpg'} alt="Logo" className="w-full h-full object-contain rounded-lg" />
+                <img
+                  src={settings.logo_url || '/logo.jpg'}
+                  alt="Logo"
+                  className="w-full h-full object-contain rounded-lg"
+                  onError={(e) => {
+                    e.currentTarget.src = '/logo.jpg';
+                  }}
+                />
               </div>
               <div className="flex flex-col justify-center">
                 <h1 className="text-xs sm:text-base font-extrabold text-white leading-tight tracking-tight max-w-[130px] xs:max-w-[170px] sm:max-w-none truncate">

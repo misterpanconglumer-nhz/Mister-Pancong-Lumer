@@ -46,7 +46,14 @@ export default function LoginPage() {
           
           {/* Official Brand Logo */}
           <div className="w-24 h-24 rounded-2xl bg-black border-2 border-amber-500/40 p-1 mx-auto mb-4 shadow-2xl flex items-center justify-center overflow-hidden">
-            <img src="/logo.jpg" alt="Logo Mister Pancong" className="w-full h-full object-contain rounded-xl" />
+            <img
+              src={settings.logo_url || '/logo.jpg'}
+              alt="Logo Mister Pancong"
+              className="w-full h-full object-contain rounded-xl"
+              onError={(e) => {
+                e.currentTarget.src = '/logo.jpg';
+              }}
+            />
           </div>
 
           <h2 className="text-xl font-black tracking-tight">{settings.app_name}</h2>

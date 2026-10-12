@@ -18,6 +18,11 @@ export const metadata: Metadata = {
   title: 'Mister Pancong Lumer - By Manage Nafa Family',
   description: 'Sistem POS, Penjualan, Laporan Harian, Absensi, dan Penggajian Terintegrasi Multi-Cabang',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/logo.jpg',
+    shortcut: '/logo.jpg',
+    apple: '/logo.jpg',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

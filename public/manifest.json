@@ -4,18 +4,20 @@
   "description": "Aplikasi Penjualan, Laporan, Absensi, dan Penggajian Mister Pancong Lumer - By Manage Nafa Family",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#6b3e26",
-  "theme_color": "#6b3e26",
+  "background_color": "#3d1e0f",
+  "theme_color": "#3d1e0f",
   "icons": [
     {
-      "src": "https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=192&h=192&q=80",
+      "src": "/logo.jpg",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/jpeg",
+      "purpose": "any maskable"
     },
     {
-      "src": "https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=512&h=512&q=80",
+      "src": "/logo.jpg",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/jpeg",
+      "purpose": "any maskable"
     }
   ]
 }
