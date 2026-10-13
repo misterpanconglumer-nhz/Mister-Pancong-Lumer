@@ -391,6 +391,24 @@ export const DataService = {
     return updated;
   },
 
+  async deleteProduct(productId: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = createClient();
+        await supabase.from('product_variants').delete().eq('product_id', productId);
+        const { error } = await supabase.from('products').delete().eq('id', productId);
+        if (error) {
+          console.error('Supabase delete product error:', error);
+        }
+      } catch (err) {
+        console.warn('Supabase delete product error:', err);
+      }
+    }
+    const products = await this.getProducts();
+    const filtered = products.filter((p) => p.id !== productId);
+    setLocalItem('products', filtered);
+  },
+
   // 5. SALES TRANSACTIONS
   async getSales(branchId?: string): Promise<SaleTransaction[]> {
     if (isSupabaseConfigured()) {

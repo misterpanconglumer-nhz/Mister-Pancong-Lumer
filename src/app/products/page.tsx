@@ -158,6 +158,30 @@ export default function ProductsManagementPage() {
     }
   };
 
+  const handleDeleteProduct = async (productId: string, productName: string) => {
+    if (!isOwner && !isAdminPusat) {
+      alert('Akses Dibatasi: Hanya Owner yang berhak menghapus menu.');
+      return;
+    }
+
+    const confirmMsg = `Hapus menu "${productName}" secara permanen?\n\nMenu ini tidak akan tampil lagi di kasir.`;
+    if (window.confirm(confirmMsg)) {
+      try {
+        await DataService.deleteProduct(productId);
+        setProducts((prev) => prev.filter((p) => p.id !== productId));
+        if (editingProductId === productId) {
+          setShowProductModal(false);
+          setEditingProductId(null);
+        }
+        alert(`✓ Menu "${productName}" berhasil dihapus!`);
+        await fetchCatalog();
+      } catch (err: any) {
+        console.error('Failed to delete product:', err);
+        alert('Gagal menghapus produk: ' + (err?.message || 'Terjadi kesalahan'));
+      }
+    }
+  };
+
   const filteredProducts = selectedCategoryId === 'all'
     ? products
     : products.filter((p) => p.category_id === selectedCategoryId);
@@ -270,19 +294,29 @@ export default function ProductsManagementPage() {
                   )}
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
                     {p.is_active ? 'Tersedia' : 'Non-aktif'}
                   </span>
 
                   {(isOwner || isAdminPusat) && (
-                    <button
-                      onClick={() => handleOpenEditProduct(p)}
-                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-amber-100 text-slate-800 hover:text-[#3d1e0f] font-bold text-xs flex items-center gap-1.5 transition-colors"
-                    >
-                      <Edit className="w-3.5 h-3.5" />
-                      <span>Edit Menu</span>
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleOpenEditProduct(p)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-amber-100 text-slate-800 hover:text-[#3d1e0f] font-bold text-xs flex items-center gap-1.5 transition-colors"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>Edit Menu</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteProduct(p.id, p.name)}
+                        className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold transition-colors"
+                        title="Hapus Menu Ini (Khusus Owner)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -499,21 +533,37 @@ export default function ProductsManagementPage() {
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowProductModal(false)}
-                  className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingProduct}
-                  className="flex-1 py-3 rounded-xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-bold text-xs shadow-md"
-                >
-                  {isSubmittingProduct ? 'Memproses...' : 'Simpan Produk'}
-                </button>
+              <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
+                {editingProductId && (isOwner || isAdminPusat) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const prod = products.find((p) => p.id === editingProductId);
+                      if (prod) handleDeleteProduct(prod.id, prod.name);
+                    }}
+                    className="py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs flex items-center gap-1.5 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Hapus Menu</span>
+                  </button>
+                ) : <div />}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowProductModal(false)}
+                    className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingProduct}
+                    className="py-2.5 px-5 rounded-xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-bold text-xs shadow-md disabled:opacity-50"
+                  >
+                    {isSubmittingProduct ? 'Memproses...' : 'Simpan Produk'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
