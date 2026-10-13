@@ -106,13 +106,7 @@ export const MOCK_CATEGORIES: Category[] = [
   { id: 'cat-3', name: 'Minuman Segar', slug: 'minuman-segar', sort_order: 3 },
 ];
 
-const standardPancongVariants = (productId: string) => [
-  { id: `${productId}-v1`, product_id: productId, variant_type: 'tingkat_kematangan', name: 'Lumer (1/2 Matang)', additional_price: 0, is_available: true },
-  { id: `${productId}-v2`, product_id: productId, variant_type: 'tingkat_kematangan', name: 'Matang Sempurna', additional_price: 0, is_available: true },
-  { id: `${productId}-v3`, product_id: productId, variant_type: 'topping', name: 'Ekstra Keju Parut', additional_price: 2000, is_available: true },
-  { id: `${productId}-v4`, product_id: productId, variant_type: 'topping', name: 'Ekstra Oreo Crumb', additional_price: 2500, is_available: true },
-  { id: `${productId}-v5`, product_id: productId, variant_type: 'topping', name: 'Ekstra Choco Chip', additional_price: 2000, is_available: true },
-];
+const standardPancongVariants = (_productId: string) => [];
 
 export const MOCK_PRODUCTS: Product[] = [
   // 1. Kategori Coklat Lumer
@@ -305,10 +299,7 @@ export const MOCK_PRODUCTS: Product[] = [
     image_url: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=500&q=80',
     base_price: 5000,
     is_active: true,
-    variants: [
-      { id: 'prod-dr-1-v1', product_id: 'prod-dr-1', variant_type: 'ukuran', name: 'Cup Regular', additional_price: 0, is_available: true },
-      { id: 'prod-dr-1-v2', product_id: 'prod-dr-1', variant_type: 'ukuran', name: 'Cup Jumbo 22oz', additional_price: 3000, is_available: true },
-    ],
+    variants: [],
   },
   {
     id: 'prod-dr-2',

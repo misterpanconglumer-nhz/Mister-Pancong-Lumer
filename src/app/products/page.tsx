@@ -26,10 +26,7 @@ export default function ProductsManagementPage() {
   const [categoryId, setCategoryId] = useState<string>('');
   const [basePrice, setBasePrice] = useState<string>('12000');
   const [imageUrl, setImageUrl] = useState<string>('');
-  const [variantsList, setVariantsList] = useState<Array<{ name: string; variant_type: string; additional_price: number }>>([
-    { name: 'Cokelat Lumer', variant_type: 'rasa', additional_price: 3000 },
-    { name: 'Keju Parut Extra', variant_type: 'topping', additional_price: 2000 },
-  ]);
+  const [isActive, setIsActive] = useState<boolean>(true);
   const [isSubmittingProduct, setIsSubmittingProduct] = useState<boolean>(false);
 
   // Form states for Category
@@ -66,10 +63,7 @@ export default function ProductsManagementPage() {
     setBasePrice('12000');
     setImageUrl('');
     setCategoryId(categories[0]?.id || '');
-    setVariantsList([
-      { name: 'Cokelat Lumer', variant_type: 'rasa', additional_price: 3000 },
-      { name: 'Keju Parut Extra', variant_type: 'topping', additional_price: 2000 },
-    ]);
+    setIsActive(true);
     setShowProductModal(true);
   };
 
@@ -80,22 +74,8 @@ export default function ProductsManagementPage() {
     setCategoryId(product.category_id || categories[0]?.id || '');
     setBasePrice(String(product.base_price));
     setImageUrl(product.image_url || '');
-    setVariantsList(
-      product.variants?.map((v) => ({
-        name: v.name,
-        variant_type: v.variant_type,
-        additional_price: v.additional_price,
-      })) || []
-    );
+    setIsActive(product.is_active ?? true);
     setShowProductModal(true);
-  };
-
-  const handleAddVariantRow = () => {
-    setVariantsList([...variantsList, { name: '', variant_type: 'rasa', additional_price: 0 }]);
-  };
-
-  const handleRemoveVariantRow = (index: number) => {
-    setVariantsList(variantsList.filter((_, i) => i !== index));
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
@@ -104,17 +84,6 @@ export default function ProductsManagementPage() {
 
     setIsSubmittingProduct(true);
     try {
-      const productVariants: ProductVariant[] = variantsList
-        .filter((v) => v.name.trim() !== '')
-        .map((v, idx) => ({
-          id: `v-${Date.now()}-${idx}`,
-          product_id: editingProductId || '',
-          variant_type: v.variant_type,
-          name: v.name,
-          additional_price: Number(v.additional_price) || 0,
-          is_available: true,
-        }));
-
       await DataService.saveProduct({
         id: editingProductId || undefined,
         name,
@@ -122,8 +91,8 @@ export default function ProductsManagementPage() {
         category_id: categoryId || categories[0]?.id || 'cat-1',
         base_price: Number(basePrice) || 0,
         image_url: imageUrl || 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=500&q=80',
-        is_active: true,
-        variants: productVariants,
+        is_active: isActive,
+        variants: [],
       });
 
       setShowProductModal(false);
@@ -279,19 +248,7 @@ export default function ProductsManagementPage() {
                   <h3 className="font-extrabold text-sm text-slate-900 leading-tight">{p.name}</h3>
                   {p.description && <p className="text-xs text-slate-500 line-clamp-2">{p.description}</p>}
 
-                  {/* Varian List */}
-                  {p.variants && p.variants.length > 0 && (
-                    <div className="space-y-1 pt-1 border-t border-slate-100">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Varian ({p.variants.length}):</p>
-                      <div className="flex flex-wrap gap-1">
-                        {p.variants.map((v) => (
-                          <span key={v.id} className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200/60 text-amber-900 text-[11px] font-bold">
-                            {v.name} {v.additional_price > 0 ? `(${formatRupiah(v.additional_price)})` : ''}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+
                 </div>
 
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
@@ -465,72 +422,16 @@ export default function ProductsManagementPage() {
                 />
               </div>
 
-              {/* Clean Varian Builder */}
-              <div className="pt-3 border-t border-slate-100 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-extrabold text-slate-900 uppercase tracking-wider block">Daftar Varian & Harga</span>
-                    <span className="text-[11px] text-slate-500">Masukkan nama varian dan harganya</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddVariantRow}
-                    className="py-1 px-2.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-[#3d1e0f] text-xs font-extrabold"
-                  >
-                    + Tambah Varian
-                  </button>
-                </div>
-
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {variantsList.map((v, idx) => (
-                    <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-200/70">
-                      <input
-                        type="text"
-                        placeholder="Nama varian (e.g. Cokelat Lumer)"
-                        value={v.name}
-                        onChange={(e) => {
-                          const updated = [...variantsList];
-                          updated[idx].name = e.target.value;
-                          setVariantsList(updated);
-                        }}
-                        className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 bg-white"
-                      />
-                      <select
-                        value={v.variant_type}
-                        onChange={(e) => {
-                          const updated = [...variantsList];
-                          updated[idx].variant_type = e.target.value;
-                          setVariantsList(updated);
-                        }}
-                        className="w-24 px-2 py-1.5 border border-slate-300 rounded-lg text-[11px] font-bold text-slate-800 bg-white"
-                      >
-                        <option value="rasa">Rasa</option>
-                        <option value="ukuran">Ukuran</option>
-                        <option value="topping">Topping</option>
-                        <option value="ekstra">Ekstra</option>
-                      </select>
-                      <input
-                        type="number"
-                        placeholder="Harga (Rp)"
-                        value={v.additional_price || ''}
-                        onChange={(e) => {
-                          const updated = [...variantsList];
-                          updated[idx].additional_price = Number(e.target.value) || 0;
-                          setVariantsList(updated);
-                        }}
-                        className="w-24 px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-extrabold text-slate-900 bg-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveVariantRow(idx)}
-                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                        title="Hapus Varian"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+              <div className="pt-2 border-t border-slate-100">
+                <label className="text-xs font-bold text-slate-700 block mb-1">Status Ketersediaan</label>
+                <select
+                  value={isActive ? 'true' : 'false'}
+                  onChange={(e) => setIsActive(e.target.value === 'true')}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 bg-white"
+                >
+                  <option value="true">Tersedia (Aktif di Kasir)</option>
+                  <option value="false">Habis / Nonaktif</option>
+                </select>
               </div>
 
               <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">

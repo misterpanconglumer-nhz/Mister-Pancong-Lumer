@@ -53,11 +53,7 @@ export default function PosPage() {
   });
 
   const handleSelectProduct = (product: Product) => {
-    if (product.variants && product.variants.length > 0) {
-      setSelectedProductForVariant(product);
-    } else {
-      addToCart(product, [], 1);
-    }
+    addToCart(product, [], 1);
   };
 
   return (
@@ -75,7 +71,7 @@ export default function PosPage() {
         </div>
         <div className="flex items-center gap-1.5 text-xs text-amber-200">
           <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-          <span className="hidden sm:inline">Sentuh menu untuk varian lumer & topping</span>
+          <span className="hidden sm:inline">Sentuh menu untuk langsung menambahkan ke pesanan kasir</span>
         </div>
       </div>
 
@@ -149,32 +145,27 @@ export default function PosPage() {
                         alt={product.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
-                      {product.variants && product.variants.length > 0 && (
-                        <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-[9px] font-black text-amber-300">
-                          {product.variants.length} Varian
-                        </span>
-                      )}
                     </div>
 
-                    <h3 className="font-extrabold text-xs sm:text-sm text-slate-900 leading-tight group-hover:text-amber-900 transition-colors line-clamp-1">
+                    <h3 className="font-black text-sm sm:text-base md:text-lg text-slate-900 leading-snug group-hover:text-amber-900 transition-colors line-clamp-2">
                       {product.name}
                     </h3>
                     {product.description && (
-                      <p className="text-[10px] text-slate-400 line-clamp-2 mt-0.5 leading-snug">
+                      <p className="text-[10px] sm:text-xs text-slate-400 line-clamp-2 mt-0.5 leading-snug">
                         {product.description}
                       </p>
                     )}
                   </div>
 
-                  <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between">
+                  <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
                     <div>
-                      <p className="text-[9px] text-slate-400 font-semibold">Harga</p>
-                      <p className="text-xs sm:text-sm font-black text-[#3d1e0f] leading-tight">
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Harga</p>
+                      <p className="text-sm sm:text-base font-black text-[#3d1e0f] leading-tight">
                         {formatRupiah(product.base_price)}
                       </p>
                     </div>
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-100 text-[#3d1e0f] font-black group-hover:bg-[#3d1e0f] group-hover:text-amber-200 flex items-center justify-center transition-colors shadow-xs">
-                      <Plus className="w-4 h-4 stroke-[3]" />
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-100 text-[#3d1e0f] font-black group-hover:bg-[#3d1e0f] group-hover:text-amber-200 flex items-center justify-center transition-colors shadow-xs">
+                      <Plus className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3]" />
                     </div>
                   </div>
                 </div>
@@ -217,22 +208,29 @@ export default function PosPage() {
 
       {/* Mobile Fullscreen Bottom Sheet Cart Modal */}
       {showMobileCart && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex flex-col justify-end lg:hidden animate-in fade-in">
-          <div className="bg-white rounded-t-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
-            <div className="p-3 bg-[#3d1e0f] text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm flex flex-col justify-end lg:hidden animate-in fade-in">
+          <div className="bg-white rounded-t-3xl max-h-[92dvh] h-[92dvh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="p-3.5 bg-[#3d1e0f] text-white flex items-center justify-between shrink-0 shadow-sm">
               <div className="flex items-center gap-2">
                 <ShoppingBag className="w-4 h-4 text-amber-400" />
-                <span className="font-extrabold text-xs">Ringkasan Pesanan & Pembayaran</span>
+                <span className="font-extrabold text-sm">Pesanan & Pembayaran</span>
+                {cartTotalCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-[#3d1e0f]">
+                    {cartTotalCount} item
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => setShowMobileCart(false)}
-                className="p-1 rounded-full text-amber-200 hover:text-white hover:bg-amber-900"
+                className="p-1 rounded-full text-amber-200 hover:text-white hover:bg-amber-900 transition-colors"
+                aria-label="Tutup"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
               <CartDrawer
+                hideHeader={true}
                 onTransactionComplete={(trx) => {
                   setShowMobileCart(false);
                   setCompletedTransaction(trx);

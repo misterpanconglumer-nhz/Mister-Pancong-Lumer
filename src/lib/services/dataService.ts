@@ -321,20 +321,20 @@ export const DataService = {
   async getProducts(): Promise<Product[]> {
     if (isSupabaseConfigured()) {
       const supabase = createClient();
-      const { data, error } = await supabase.from('products').select('*, product_variants(*)');
+      const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: true });
       if (!error && data && data.length > 0) {
         return data.map((p: any) => ({
           ...p,
-          variants: p.product_variants || [],
+          variants: [],
         }));
       }
     }
     const local = getLocalItem<Product[]>('products', MOCK_PRODUCTS);
     if (!local || local.length === 0) {
       setLocalItem('products', MOCK_PRODUCTS);
-      return MOCK_PRODUCTS;
+      return MOCK_PRODUCTS.map((p) => ({ ...p, variants: [] }));
     }
-    return local;
+    return local.map((p) => ({ ...p, variants: [] }));
   },
 
   async saveProduct(product: Partial<Product>): Promise<Product> {
@@ -343,10 +343,10 @@ export const DataService = {
     if (product.id) {
       const idx = products.findIndex((p) => p.id === product.id);
       if (idx !== -1) {
-        products[idx] = { ...products[idx], ...product, updated_at: new Date().toISOString() };
+        products[idx] = { ...products[idx], ...product, variants: [], updated_at: new Date().toISOString() };
         updated = products[idx];
       } else {
-        updated = product as Product;
+        updated = { ...(product as Product), variants: [] };
       }
     } else {
       updated = {
@@ -357,7 +357,7 @@ export const DataService = {
         image_url: product.image_url || 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=500&q=80',
         base_price: product.base_price || 10000,
         is_active: product.is_active ?? true,
-        variants: product.variants || [],
+        variants: [],
         created_at: new Date().toISOString(),
       };
       products.push(updated);
@@ -365,7 +365,7 @@ export const DataService = {
 
     if (isSupabaseConfigured()) {
       const supabase = createClient();
-      const { data } = await supabase.from('products').upsert({
+      await supabase.from('products').upsert({
         id: updated.id,
         category_id: updated.category_id,
         name: updated.name,
@@ -373,18 +373,10 @@ export const DataService = {
         image_url: updated.image_url,
         base_price: updated.base_price,
         is_active: updated.is_active,
-      }).select().single();
+      });
 
-      if (data && updated.variants && updated.variants.length > 0) {
-        await supabase.from('product_variants').delete().eq('product_id', updated.id);
-        const vToInsert = updated.variants.map((v) => ({
-          product_id: updated.id,
-          variant_type: v.variant_type,
-          name: v.name,
-          additional_price: v.additional_price,
-        }));
-        await supabase.from('product_variants').insert(vToInsert);
-      }
+      // Clear any remaining product_variants if any
+      await supabase.from('product_variants').delete().eq('product_id', updated.id);
     }
 
     setLocalItem('products', products);
