@@ -1,5 +1,8 @@
 import { createBrowserClient } from '@supabase/ssr';
 
+export const DEFAULT_SUPABASE_URL = 'https://urjakwhbkwsimtzdftpb.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVyamFrd2hia3dzaW10emRmdHBiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1NzY1NDQsImV4cCI6MjEwNzE1MjU0NH0.xv-YsPXdHq_IDO9LpVto9LFuOW_U_asFTJIIqyI_zEw';
+
 export const getSupabaseConfig = () => {
   if (typeof window !== 'undefined') {
     const customUrl = localStorage.getItem('mpl_custom_supabase_url');
@@ -13,17 +16,17 @@ export const getSupabaseConfig = () => {
   if (envUrl && envKey && !envUrl.includes('placeholder') && envUrl.startsWith('http')) {
     return { url: envUrl.trim(), anonKey: envKey.trim(), source: 'env' as const };
   }
-  return null;
+  return { url: DEFAULT_SUPABASE_URL, anonKey: DEFAULT_SUPABASE_ANON_KEY, source: 'default' as const };
 };
 
 export const isSupabaseConfigured = () => {
-  return Boolean(getSupabaseConfig());
+  return true;
 };
 
 export function createClient() {
   const config = getSupabaseConfig();
-  const supabaseUrl = config?.url || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project.supabase.co';
-  const supabaseAnonKey = config?.anonKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
+  const supabaseUrl = config?.url || DEFAULT_SUPABASE_URL;
+  const supabaseAnonKey = config?.anonKey || DEFAULT_SUPABASE_ANON_KEY;
 
   return createBrowserClient(supabaseUrl, supabaseAnonKey);
 }

@@ -524,15 +524,15 @@ export const DataService = {
     const uList = await this.getUsers();
 
     // 1. Ensure valid branch UUID
-    let validBranchId = expense.branch_id;
-    if (!isValidUuid(validBranchId)) {
+    let validBranchId: string = (expense.branch_id && isValidUuid(expense.branch_id)) ? expense.branch_id : '';
+    if (!validBranchId) {
       const matched = bList.find((b) => b.id === expense.branch_id || b.code === expense.branch_id || b.name === expense.branch_name);
       validBranchId = matched?.id || bList[0]?.id || 'd9ec11ac-c42f-4904-b932-20abbe83e89e';
     }
 
     // 2. Ensure valid user UUID
-    let validUserId = expense.created_by;
-    if (!isValidUuid(validUserId)) {
+    let validUserId: string = (expense.created_by && isValidUuid(expense.created_by)) ? expense.created_by : '';
+    if (!validUserId) {
       const matched = uList.find((u) => u.id === expense.created_by || u.username === expense.created_by);
       validUserId = matched?.id || uList[0]?.id || '11111111-1111-1111-1111-111111111111';
     }

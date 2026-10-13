@@ -71,23 +71,37 @@ export default function ExpensesPage() {
 
   const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !title.trim() || !amountInput) return;
+    if (!title.trim() || !amountInput) {
+      alert('Mohon isi nama dan nominal pengeluaran!');
+      return;
+    }
+
+    const effectiveUserId = user?.id || '33333333-3333-3333-3333-333333333333';
+    const effectiveUserName = user?.full_name || 'Next Karyawan';
+    const effectiveBranchId = activeBranch?.id || 'd9ec11ac-c42f-4904-b932-20abbe83e89e';
+    const effectiveBranchName = activeBranch?.name || 'Cidodol';
 
     setIsSubmitting(true);
     try {
-      await DataService.saveExpense({
+      const saved = await DataService.saveExpense({
         id: editingExpense ? editingExpense.id : undefined,
-        branch_id: editingExpense ? editingExpense.branch_id : (activeBranch?.id || 'd9ec11ac-c42f-4904-b932-20abbe83e89e'),
-        branch_name: editingExpense ? editingExpense.branch_name : (activeBranch?.name || 'Cidodol'),
+        branch_id: editingExpense ? editingExpense.branch_id : effectiveBranchId,
+        branch_name: editingExpense ? editingExpense.branch_name : effectiveBranchName,
         category_name: categoryName,
-        title,
+        title: title.trim(),
         amount: Number(amountInput) || 0,
         payment_method: paymentMethod,
-        notes,
+        notes: notes.trim(),
         status,
-        created_by: editingExpense ? editingExpense.created_by : user.id,
-        created_by_name: editingExpense ? editingExpense.created_by_name : user.full_name,
+        created_by: editingExpense ? editingExpense.created_by : effectiveUserId,
+        created_by_name: editingExpense ? editingExpense.created_by_name : effectiveUserName,
         expense_date: editingExpense ? editingExpense.expense_date : new Date().toISOString().split('T')[0],
+      });
+
+      // Optimistic update
+      setExpenses((prev) => {
+        const filtered = prev.filter((item) => item.id !== saved.id);
+        return [saved, ...filtered];
       });
 
       setShowModal(false);

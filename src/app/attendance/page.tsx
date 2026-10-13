@@ -50,8 +50,8 @@ export default function AttendancePage() {
     try {
       const bList = await DataService.getBranches();
       const branchToUse = activeBranch || bList[0];
-      const currentUserName = user?.full_name || 'Karyawan Kasir';
-      const currentUserId = user?.id || '44444444-4444-4444-4444-444444444444';
+      const currentUserName = user?.full_name || 'Next Karyawan';
+      const currentUserId = user?.id || '33333333-3333-3333-3333-333333333333';
       const currentUserRole = user?.role || 'penjual';
 
       await DataService.clockIn(
@@ -74,7 +74,7 @@ export default function AttendancePage() {
   const handleClockOut = async () => {
     setActionLoading(true);
     try {
-      const currentUserId = user?.id || '44444444-4444-4444-4444-444444444444';
+      const currentUserId = user?.id || '33333333-3333-3333-3333-333333333333';
       await DataService.clockOut(currentUserId);
       await fetchAttendance();
       alert('✓ Presensi selesai shift (Clock Out) berhasil dicatat!');
