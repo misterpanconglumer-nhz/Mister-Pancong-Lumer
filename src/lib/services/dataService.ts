@@ -491,6 +491,38 @@ export const DataService = {
     return false;
   },
 
+  async deleteSaleTransaction(trxId: string, deletedByUserId?: string, deletedByName?: string): Promise<boolean> {
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = createClient();
+        await supabase.from('sale_items').delete().eq('sale_id', trxId);
+        const { error } = await supabase.from('sales').delete().eq('id', trxId);
+        if (error) {
+          console.error('Supabase delete sale error:', error);
+        }
+      } catch (err) {
+        console.warn('Supabase delete sale error:', err);
+      }
+    }
+    const sales = getLocalItem<SaleTransaction[]>('sales', MOCK_SALES);
+    const existing = sales.find((s) => s.id === trxId);
+    const filtered = sales.filter((s) => s.id !== trxId);
+    setLocalItem('sales', filtered);
+
+    if (deletedByUserId) {
+      await this.logAudit({
+        user_id: deletedByUserId,
+        user_name: deletedByName || 'Pengguna',
+        action: 'HAPUS_TRANSAKSI_PENJUALAN',
+        target_table: 'sales',
+        target_id: existing?.transaction_number || trxId,
+        details: { total: existing?.total_amount },
+      });
+    }
+
+    return true;
+  },
+
   // 6. EXPENSES (Full Supabase Sync)
   async getExpenses(branchId?: string): Promise<Expense[]> {
     if (isSupabaseConfigured()) {
@@ -621,35 +653,95 @@ export const DataService = {
     }
   },
 
-  // 7. DAILY REPORTS
-  async getDailyReports(branchId?: string): Promise<DailyReport[]> {
+  // 7. DAILY REPORTS (Full Supabase Sync)
+  async getDailyReports(branchId?: string, date?: string): Promise<DailyReport[]> {
     if (isSupabaseConfigured()) {
       const supabase = createClient();
       let query = supabase.from('daily_reports').select('*').order('report_date', { ascending: false });
-      if (branchId) query = query.eq('branch_id', branchId);
+      if (branchId && branchId !== 'all') query = query.eq('branch_id', branchId);
+      if (date) query = query.eq('report_date', date);
       const { data, error } = await query;
-      if (!error && data) return data;
+      if (!error && data) {
+        const [bList, uList] = await Promise.all([this.getBranches(), this.getUsers()]);
+        const bMap = new Map(bList.map((b) => [b.id, b.name]));
+        const uMap = new Map(uList.map((u) => [u.id, u.full_name]));
+        return data.map((r: any) => ({
+          ...r,
+          branch_name: bMap.get(r.branch_id) || r.branch_name || 'Cabang',
+          submitted_by_name: uMap.get(r.submitted_by) || r.submitted_by_name || 'Karyawan Kasir',
+        }));
+      }
     }
     const list = getLocalItem<DailyReport[]>('daily_reports', MOCK_DAILY_REPORTS);
-    if (branchId) return list.filter((r) => r.branch_id === branchId);
-    return list;
+    let filtered = list;
+    if (branchId && branchId !== 'all') filtered = filtered.filter((r) => r.branch_id === branchId);
+    if (date) filtered = filtered.filter((r) => r.report_date === date);
+    return filtered;
   },
 
   async submitDailyReport(report: Omit<DailyReport, 'id' | 'created_at'>): Promise<DailyReport> {
-    const list = getLocalItem<DailyReport[]>('daily_reports', MOCK_DAILY_REPORTS);
-    const existingIdx = list.findIndex((r) => r.branch_id === report.branch_id && r.report_date === report.report_date);
-    
+    const bList = await this.getBranches();
+    const uList = await this.getUsers();
+
+    let validBranchId: string = (report.branch_id && isValidUuid(report.branch_id)) ? report.branch_id : '';
+    if (!validBranchId) {
+      const matched = bList.find((b) => b.id === report.branch_id || b.code === report.branch_id || b.name === report.branch_name);
+      validBranchId = matched?.id || bList[0]?.id || 'd9ec11ac-c42f-4904-b932-20abbe83e89e';
+    }
+
+    let validUserId: string = (report.submitted_by && isValidUuid(report.submitted_by)) ? report.submitted_by : '';
+    if (!validUserId) {
+      const matched = uList.find((u) => u.id === report.submitted_by || u.username === report.submitted_by);
+      validUserId = matched?.id || uList[0]?.id || '11111111-1111-1111-1111-111111111111';
+    }
+
+    const validId = generateUuid();
+    const branchName = bList.find((b) => b.id === validBranchId)?.name || report.branch_name || 'Cabang';
+    const submitterName = uList.find((u) => u.id === validUserId)?.full_name || report.submitted_by_name || 'Karyawan Kasir';
+
     const newReport: DailyReport = {
       ...report,
-      id: existingIdx !== -1 ? list[existingIdx].id : `dr-${Date.now()}`,
+      id: validId,
+      branch_id: validBranchId,
+      branch_name: branchName,
+      submitted_by: validUserId,
+      submitted_by_name: submitterName,
       created_at: new Date().toISOString(),
     };
 
     if (isSupabaseConfigured()) {
-      const supabase = createClient();
-      await supabase.from('daily_reports').upsert(newReport);
+      try {
+        const supabase = createClient();
+        const dbPayload = {
+          id: validId,
+          branch_id: validBranchId,
+          report_date: newReport.report_date,
+          submitted_by: validUserId,
+          gross_sales: newReport.gross_sales,
+          total_transactions: newReport.total_transactions,
+          cash_sales: newReport.cash_sales,
+          non_cash_sales: newReport.non_cash_sales,
+          branch_cash_expenses: newReport.branch_cash_expenses,
+          initial_cash_balance: newReport.initial_cash_balance,
+          expected_cash: newReport.expected_cash,
+          actual_cash: newReport.actual_cash,
+          cash_difference: newReport.cash_difference,
+          notes: newReport.notes || null,
+          status: newReport.status || 'pending',
+          reviewed_by: newReport.reviewed_by || null,
+          reviewed_at: newReport.reviewed_at || null,
+        };
+        const { error } = await supabase.from('daily_reports').upsert(dbPayload, { onConflict: 'branch_id,report_date' });
+        if (error) {
+          console.error('Supabase submitDailyReport error:', error);
+        }
+      } catch (e) {
+        console.warn('Supabase daily report sync error:', e);
+      }
     }
 
+    const list = getLocalItem<DailyReport[]>('daily_reports', MOCK_DAILY_REPORTS);
+    const existingIdx = list.findIndex((r) => r.branch_id === validBranchId && r.report_date === newReport.report_date);
     if (existingIdx !== -1) {
       list[existingIdx] = newReport;
     } else {
@@ -658,6 +750,20 @@ export const DataService = {
 
     setLocalItem('daily_reports', list);
     return newReport;
+  },
+
+  async deleteDailyReport(reportId: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = createClient();
+        await supabase.from('daily_reports').delete().eq('id', reportId);
+      } catch (e) {
+        console.warn('Supabase delete daily report error:', e);
+      }
+    }
+    const list = getLocalItem<DailyReport[]>('daily_reports', MOCK_DAILY_REPORTS);
+    const filtered = list.filter((r) => r.id !== reportId);
+    setLocalItem('daily_reports', filtered);
   },
 
   async updateDailyReportStatus(reportId: string, status: 'approved' | 'revision_requested', reviewerId: string): Promise<void> {

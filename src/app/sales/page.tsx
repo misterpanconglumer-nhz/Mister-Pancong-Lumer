@@ -5,11 +5,11 @@ import { useAuth } from '@/context/AuthContext';
 import { SaleTransaction } from '@/types';
 import { DataService } from '@/lib/services/dataService';
 import { formatRupiah, formatDateTime } from '@/lib/utils/formatters';
-import { Search, Filter, Receipt, Ban, Eye, Printer, Calendar, Store, User, RotateCcw } from 'lucide-react';
+import { Search, Filter, Receipt, Ban, Eye, Printer, Calendar, Store, User, RotateCcw, Trash2 } from 'lucide-react';
 import ReceiptModal from '@/components/pos/ReceiptModal';
 
 export default function SalesHistoryPage() {
-  const { user, activeBranch, isOwner, isAdminPusat } = useAuth();
+  const { user, activeBranch, branches, isOwner, isAdminPusat, isAdminCabang } = useAuth();
 
   const [sales, setSales] = useState<SaleTransaction[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -43,6 +43,12 @@ export default function SalesHistoryPage() {
   const handleSetToday = () => {
     const today = new Date().toISOString().split('T')[0];
     setFilterDate(today);
+  };
+
+  const handleSetYesterday = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    setFilterDate(d.toISOString().split('T')[0]);
   };
 
   const handleClearFilters = () => {
@@ -80,6 +86,25 @@ export default function SalesHistoryPage() {
   const totalOmzetFiltered = filteredSales
     .filter((s) => s.status === 'completed')
     .reduce((acc, curr) => acc + curr.total_amount, 0);
+
+  const handleDeleteTransaction = async (tx: SaleTransaction) => {
+    const confirmMsg = `Hapus transaksi ${tx.transaction_number} (Total: ${formatRupiah(tx.total_amount)}) secara permanen?\n\nTindakan ini tidak dapat dibatalkan.`;
+    if (window.confirm(confirmMsg)) {
+      try {
+        const userId = user?.id || '33333333-3333-3333-3333-333333333333';
+        const userName = user?.full_name || 'Kasir / Admin';
+        await DataService.deleteSaleTransaction(tx.id, userId, userName);
+
+        // Optimistic removal
+        setSales((prev) => prev.filter((s) => s.id !== tx.id));
+        alert(`✓ Transaksi ${tx.transaction_number} berhasil dihapus!`);
+        await fetchSales();
+      } catch (err: any) {
+        console.error('Failed to delete transaction:', err);
+        alert('Gagal menghapus transaksi: ' + (err?.message || 'Terjadi kesalahan sistem'));
+      }
+    }
+  };
 
   const handleConfirmCancel = async () => {
     if (!txToCancel || !cancelReason.trim() || !user) return;
@@ -133,8 +158,8 @@ export default function SalesHistoryPage() {
           </div>
 
           {/* Date Parameter Filter */}
-          <div className="relative md:col-span-4 flex items-center gap-2">
-            <div className="relative flex-1">
+          <div className="relative md:col-span-5 flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[140px]">
               <Calendar className="w-4 h-4 text-amber-600 absolute left-3 top-3.5" />
               <input
                 type="date"
@@ -150,10 +175,17 @@ export default function SalesHistoryPage() {
             >
               Hari Ini
             </button>
+            <button
+              onClick={handleSetYesterday}
+              className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold shrink-0 transition-colors"
+              title="Filter Transaksi Kemarin"
+            >
+              Kemarin
+            </button>
           </div>
 
-          {/* Branch Picker (Owner) */}
-          {isOwner && (
+          {/* Branch Picker (Owner & Admin) */}
+          {(isOwner || isAdminPusat) && (
             <div className="md:col-span-3">
               <select
                 value={filterBranchId}
@@ -161,8 +193,11 @@ export default function SalesHistoryPage() {
                 className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
               >
                 <option value="all">Semua Cabang</option>
-                <option value="br-1">Cabang Cidodol</option>
-                <option value="br-2">Cabang Blujami</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    Cabang {b.name}
+                  </option>
+                ))}
               </select>
             </div>
           )}
@@ -176,7 +211,11 @@ export default function SalesHistoryPage() {
               <Filter className="w-3.5 h-3.5 text-amber-600" />
               <span>Filter Aktif:</span>
               {filterDate && <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-[#3d1e0f] font-mono font-bold">Tanggal: {filterDate}</span>}
-              {filterBranchId !== 'all' && <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-[#3d1e0f] font-bold">Cabang: {filterBranchId}</span>}
+              {filterBranchId !== 'all' && (
+                <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-[#3d1e0f] font-bold">
+                  Cabang: {branches.find((b) => b.id === filterBranchId)?.name || filterBranchId}
+                </span>
+              )}
               {searchQuery && <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-medium">" {searchQuery} "</span>}
             </div>
 
@@ -259,12 +298,21 @@ export default function SalesHistoryPage() {
                     {tx.status === 'completed' && (isOwner || isAdminPusat) && (
                       <button
                         onClick={() => setTxToCancel(tx)}
-                        className="p-2.5 rounded-xl bg-rose-100 text-rose-700 font-bold hover:bg-rose-200 transition-colors"
+                        className="p-2.5 rounded-xl bg-amber-50 text-amber-800 font-bold hover:bg-amber-100 transition-colors"
                         title="Batalkan Transaksi"
                       >
                         <Ban className="w-4 h-4" />
                       </button>
                     )}
+
+                    {/* Hapus Transaksi Permanen (Akses Owner, Admin, dan Kasir) */}
+                    <button
+                      onClick={() => handleDeleteTransaction(tx)}
+                      className="p-2.5 rounded-xl bg-rose-50 text-rose-600 font-bold hover:bg-rose-100 hover:text-rose-700 transition-colors"
+                      title="Hapus Transaksi Permanen"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               </div>
