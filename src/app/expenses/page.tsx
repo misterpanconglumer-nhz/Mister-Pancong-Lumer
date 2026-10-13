@@ -77,7 +77,7 @@ export default function ExpensesPage() {
     try {
       await DataService.saveExpense({
         id: editingExpense ? editingExpense.id : undefined,
-        branch_id: editingExpense ? editingExpense.branch_id : (activeBranch?.id || 'br-1'),
+        branch_id: editingExpense ? editingExpense.branch_id : (activeBranch?.id || 'd9ec11ac-c42f-4904-b932-20abbe83e89e'),
         branch_name: editingExpense ? editingExpense.branch_name : (activeBranch?.name || 'Cidodol'),
         category_name: categoryName,
         title,
@@ -93,8 +93,10 @@ export default function ExpensesPage() {
       setShowModal(false);
       setEditingExpense(null);
       await fetchExpenses();
-    } catch (err) {
+      alert('✓ Catatan pengeluaran berhasil disimpan!');
+    } catch (err: any) {
       console.error('Failed to save expense:', err);
+      alert('Gagal menyimpan pengeluaran: ' + (err?.message || 'Terjadi kendala jaringan'));
     } finally {
       setIsSubmitting(false);
     }

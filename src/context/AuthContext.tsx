@@ -13,7 +13,7 @@ interface AuthContextType {
   isAdminPusat: boolean;
   isAdminCabang: boolean;
   isPenjual: boolean;
-  loginWithCredentials: (usernameOrEmail: string, pass: string) => Promise<{ success: boolean; message?: string }>;
+  loginWithCredentials: (usernameOrEmail: string, pass: string) => Promise<{ success: boolean; message?: string; user?: UserProfile }>;
   loginAsDemoUser: (role: UserRole) => Promise<void>;
   setActiveBranch: (branch: Branch) => void;
   logout: () => void;
@@ -81,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else if (bList.length > 0) {
         setActiveBranch(bList[0]);
       }
-      return { success: true };
+      return { success: true, user: foundUser };
     } else {
       return { success: false, message: 'Username atau password yang Anda masukkan salah!' };
     }

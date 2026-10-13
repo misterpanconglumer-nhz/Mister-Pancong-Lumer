@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { SaleTransaction, Expense, DailyReport, Branch } from '@/types';
 import { DataService } from '@/lib/services/dataService';
 import { formatRupiah } from '@/lib/utils/formatters';
-import { LayoutDashboard, TrendingUp, DollarSign, ShoppingBag, Wallet, Store, ShieldCheck, AlertCircle, Sparkles, Award, Lock } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, DollarSign, ShoppingBag, Wallet, Store, ShieldCheck, AlertCircle, Sparkles, Award, Lock, UtensilsCrossed, Users, Banknote, ClipboardList, Settings, ArrowRight, Clock } from 'lucide-react';
 
 export default function DashboardPage() {
   const { isOwner, isAdminPusat } = useAuth();
@@ -93,6 +94,96 @@ export default function DashboardPage() {
         <div className="px-4 py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 text-right">
           <p className="text-[10px] text-amber-300 font-medium">Omzet Hari Ini</p>
           <p className="text-lg font-extrabold text-white font-mono">{formatRupiah(todayOmzet)}</p>
+        </div>
+      </div>
+
+      {/* Quick Action Management Cards for Owner */}
+      <div className="bg-white p-4 sm:p-5 rounded-3xl border border-amber-900/10 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-black text-slate-900">Menu Manajemen Owner & Admin</h2>
+            <p className="text-[11px] text-slate-500">Akses cepat ke seluruh modul operasional bisnis Anda</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          <Link
+            href="/products"
+            className="p-3.5 rounded-2xl bg-amber-50/80 hover:bg-amber-100/90 border border-amber-200/60 flex flex-col items-center text-center gap-2 group transition-all"
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#3d1e0f] text-amber-300 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+              <UtensilsCrossed className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-900 leading-tight">Produk & Menu</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Varian & Harga</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/branches"
+            className="p-3.5 rounded-2xl bg-amber-50/80 hover:bg-amber-100/90 border border-amber-200/60 flex flex-col items-center text-center gap-2 group transition-all"
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#3d1e0f] text-amber-300 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-900 leading-tight">Cabang & Tim</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Kelola Kasir</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/payroll"
+            className="p-3.5 rounded-2xl bg-emerald-50/80 hover:bg-emerald-100/90 border border-emerald-200/60 flex flex-col items-center text-center gap-2 group transition-all"
+          >
+            <div className="w-10 h-10 rounded-xl bg-emerald-700 text-emerald-100 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+              <Banknote className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-900 leading-tight">Penggajian</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Slip & Bonus</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/daily-reports"
+            className="p-3.5 rounded-2xl bg-blue-50/80 hover:bg-blue-100/90 border border-blue-200/60 flex flex-col items-center text-center gap-2 group transition-all"
+          >
+            <div className="w-10 h-10 rounded-xl bg-blue-700 text-blue-100 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+              <ClipboardList className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-900 leading-tight">Laporan Kas</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Tutup Kas Harian</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/pos"
+            className="p-3.5 rounded-2xl bg-amber-50/80 hover:bg-amber-100/90 border border-amber-200/60 flex flex-col items-center text-center gap-2 group transition-all"
+          >
+            <div className="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+              <ShoppingBag className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-900 leading-tight">Buka Kasir</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Transaksi POS</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/settings"
+            className="p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 flex flex-col items-center text-center gap-2 group transition-all"
+          >
+            <div className="w-10 h-10 rounded-xl bg-slate-800 text-slate-100 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+              <Settings className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-900 leading-tight">Pengaturan</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Brand & Cloud</p>
+            </div>
+          </Link>
         </div>
       </div>
 

@@ -92,11 +92,11 @@ export const VariantSelectorModal: React.FC<VariantSelectorModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
         
         {/* Modal Header */}
-        <div className="relative p-4 border-b border-slate-100 flex items-center justify-between bg-cream-50">
+        <div className="relative p-4 border-b border-slate-100 flex items-center justify-between bg-cream-50 shrink-0">
           <div className="flex items-center gap-3">
             <img
               src={product.image_url || 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=500&q=80'}
@@ -195,14 +195,14 @@ export const VariantSelectorModal: React.FC<VariantSelectorModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-4">
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-4 shrink-0 pb-8 sm:pb-4 shadow-md">
           <div>
-            <p className="text-[11px] text-slate-500 font-medium">Subtotal Produk</p>
-            <p className="text-lg font-extrabold text-brand-900 leading-tight">{formatRupiah(totalPrice)}</p>
+            <p className="text-[11px] text-slate-500 font-semibold">Subtotal Produk</p>
+            <p className="text-lg font-black text-[#3d1e0f] leading-tight">{formatRupiah(totalPrice)}</p>
           </div>
           <button
             onClick={handleConfirm}
-            className="flex-1 py-3.5 px-6 rounded-2xl bg-brand-800 hover:bg-brand-900 text-amber-100 font-bold text-sm shadow-lg shadow-brand-900/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+            className="flex-1 py-4 px-6 rounded-2xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-200 font-black text-sm shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 ring-1 ring-amber-500/30"
           >
             <span>Masukkan Keranjang</span>
           </button>

@@ -15,6 +15,14 @@ export default function AttendancePage() {
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
 
+  const getTodayDateStr = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const fetchAttendance = async () => {
     setLoading(true);
     try {
@@ -22,7 +30,7 @@ export default function AttendancePage() {
       setRecords(data);
 
       if (user) {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayDateStr();
         const current = data.find((r) => r.user_id === user.id && r.date === today);
         setTodayRecord(current || null);
       }
@@ -50,12 +58,14 @@ export default function AttendancePage() {
         currentUserId,
         currentUserName,
         currentUserRole,
-        branchToUse?.id || 'b1111111-1111-1111-1111-111111111111',
+        branchToUse?.id || 'd9ec11ac-c42f-4904-b932-20abbe83e89e',
         branchToUse?.name || 'Cidodol'
       );
       await fetchAttendance();
+      alert('✓ Presensi masuk shift berhasil dicatat!');
     } catch (err) {
       console.error('Clock in failed:', err);
+      alert('Gagal mencatat presensi. Silakan coba lagi.');
     } finally {
       setActionLoading(false);
     }
@@ -67,8 +77,10 @@ export default function AttendancePage() {
       const currentUserId = user?.id || '44444444-4444-4444-4444-444444444444';
       await DataService.clockOut(currentUserId);
       await fetchAttendance();
+      alert('✓ Presensi selesai shift (Clock Out) berhasil dicatat!');
     } catch (err) {
       console.error('Clock out failed:', err);
+      alert('Gagal mencatat clock out. Silakan coba lagi.');
     } finally {
       setActionLoading(false);
     }

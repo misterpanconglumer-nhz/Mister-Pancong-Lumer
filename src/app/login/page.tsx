@@ -30,7 +30,11 @@ export default function LoginPage() {
     setIsSubmitting(false);
 
     if (res.success) {
-      router.push('/pos');
+      if (res.user?.role === 'owner' || res.user?.role === 'admin_pusat') {
+        router.push('/dashboard');
+      } else {
+        router.push('/pos');
+      }
     } else {
       setErrorMsg(res.message || 'Username atau password yang Anda masukkan salah!');
     }

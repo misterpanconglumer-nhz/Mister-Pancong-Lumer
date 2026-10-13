@@ -4,11 +4,11 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
-import { Store, ChevronDown, LogOut, Settings, Calculator } from 'lucide-react';
+import { Store, ChevronDown, LogOut, Settings, Calculator, LayoutDashboard, UtensilsCrossed, Users, Banknote, ClipboardList, ShoppingCart } from 'lucide-react';
 import CalculatorModal from '@/components/common/CalculatorModal';
 
 export const Navbar: React.FC = () => {
-  const { user, activeBranch, branches, setActiveBranch, isOwner, logout } = useAuth();
+  const { user, activeBranch, branches, setActiveBranch, isOwner, isAdminPusat, logout } = useAuth();
   const { settings } = useApp();
   const [showBranchMenu, setShowBranchMenu] = useState(false);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
@@ -123,15 +123,69 @@ export const Navbar: React.FC = () => {
                       </span>
                     </div>
 
-                    {isOwner && (
-                      <Link
-                        href="/settings"
-                        onClick={() => setShowRoleMenu(false)}
-                        className="flex items-center gap-2 px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 font-semibold border-b border-slate-100"
-                      >
-                        <Settings className="w-4 h-4 text-slate-500" />
-                        <span>Pengaturan Brand</span>
-                      </Link>
+                    {(isOwner || isAdminPusat) && (
+                      <div className="py-1 border-b border-slate-100 divide-y divide-slate-50">
+                        <Link
+                          href="/dashboard"
+                          onClick={() => setShowRoleMenu(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-800 hover:bg-amber-50 hover:text-[#3d1e0f] font-bold"
+                        >
+                          <LayoutDashboard className="w-4 h-4 text-amber-600" />
+                          <span>Dashboard Pusat</span>
+                        </Link>
+                        <Link
+                          href="/products"
+                          onClick={() => setShowRoleMenu(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-800 hover:bg-amber-50 hover:text-[#3d1e0f] font-semibold"
+                        >
+                          <UtensilsCrossed className="w-4 h-4 text-amber-600" />
+                          <span>Kelola Produk & Varian</span>
+                        </Link>
+                        {isOwner && (
+                          <Link
+                            href="/branches"
+                            onClick={() => setShowRoleMenu(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-xs text-slate-800 hover:bg-amber-50 hover:text-[#3d1e0f] font-semibold"
+                          >
+                            <Users className="w-4 h-4 text-amber-600" />
+                            <span>Cabang & Karyawan</span>
+                          </Link>
+                        )}
+                        <Link
+                          href="/payroll"
+                          onClick={() => setShowRoleMenu(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-800 hover:bg-amber-50 hover:text-[#3d1e0f] font-semibold"
+                        >
+                          <Banknote className="w-4 h-4 text-emerald-600" />
+                          <span>Penggajian (Payroll)</span>
+                        </Link>
+                        <Link
+                          href="/daily-reports"
+                          onClick={() => setShowRoleMenu(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-800 hover:bg-amber-50 hover:text-[#3d1e0f] font-semibold"
+                        >
+                          <ClipboardList className="w-4 h-4 text-blue-600" />
+                          <span>Laporan Harian & Kas</span>
+                        </Link>
+                        <Link
+                          href="/pos"
+                          onClick={() => setShowRoleMenu(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-800 hover:bg-amber-50 hover:text-[#3d1e0f] font-semibold"
+                        >
+                          <ShoppingCart className="w-4 h-4 text-amber-700" />
+                          <span>Buka Kasir POS</span>
+                        </Link>
+                        {isOwner && (
+                          <Link
+                            href="/settings"
+                            onClick={() => setShowRoleMenu(false)}
+                            className="flex items-center gap-2 px-4 py-2 text-xs text-slate-800 hover:bg-amber-50 hover:text-[#3d1e0f] font-semibold"
+                          >
+                            <Settings className="w-4 h-4 text-slate-600" />
+                            <span>Pengaturan Brand & Cloud</span>
+                          </Link>
+                        )}
+                      </div>
                     )}
 
                     <button

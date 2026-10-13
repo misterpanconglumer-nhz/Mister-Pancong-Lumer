@@ -13,7 +13,34 @@ export const MobileNav: React.FC = () => {
   const { cartTotalCount } = useApp();
   const isPenjual = !isOwner && !isAdminPusat && !isAdminCabang;
 
-  const navItems = [
+  const navItems = (isOwner || isAdminPusat) ? [
+    {
+      label: 'Dashboard',
+      href: '/dashboard',
+      icon: LayoutDashboard,
+    },
+    {
+      label: 'Laporan',
+      href: '/daily-reports',
+      icon: ClipboardList,
+    },
+    {
+      label: 'Kasir',
+      href: '/pos',
+      icon: ShoppingCart,
+      badge: cartTotalCount > 0 ? cartTotalCount : undefined,
+    },
+    {
+      label: 'Pengeluaran',
+      href: '/expenses',
+      icon: Wallet,
+    },
+    {
+      label: 'Riwayat',
+      href: '/sales',
+      icon: Receipt,
+    },
+  ] : [
     {
       label: 'Kasir',
       href: '/pos',
@@ -35,23 +62,8 @@ export const MobileNav: React.FC = () => {
       href: '/attendance',
       icon: CalendarCheck,
     },
+    ...(!isPenjual ? [{ label: 'Laporan', href: '/daily-reports', icon: ClipboardList }] : []),
   ];
-
-  if (!isPenjual) {
-    navItems.push({
-      label: 'Laporan',
-      href: '/daily-reports',
-      icon: ClipboardList,
-    });
-  }
-
-  if (isOwner || isAdminPusat) {
-    navItems.push({
-      label: 'Dashboard',
-      href: '/dashboard',
-      icon: LayoutDashboard,
-    });
-  }
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur-lg border-t border-amber-900/10 py-1.5 px-2 md:hidden shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">

@@ -59,6 +59,21 @@ function setLocalItem<T>(key: string, value: T): void {
   }
 }
 
+export const isValidUuid = (id?: string | null): boolean => {
+  return Boolean(id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+};
+
+export const generateUuid = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
 export const DataService = {
   // 1. APP SETTINGS
   async getAppSettings(): Promise<AppIdentitySettings> {
@@ -483,7 +498,17 @@ export const DataService = {
       let query = supabase.from('expenses').select('*').order('created_at', { ascending: false });
       if (branchId) query = query.eq('branch_id', branchId);
       const { data, error } = await query;
-      if (!error && data) return data;
+      if (!error && data) {
+        const [bList, uList] = await Promise.all([this.getBranches(), this.getUsers()]);
+        const bMap = new Map(bList.map((b) => [b.id, b.name]));
+        const uMap = new Map(uList.map((u) => [u.id, u.full_name]));
+        return data.map((e: any) => ({
+          ...e,
+          branch_name: bMap.get(e.branch_id) || 'Cabang',
+          created_by_name: uMap.get(e.created_by) || 'Karyawan',
+          category_name: e.category_name || 'Bahan Baku',
+        }));
+      }
     }
     const expenses = getLocalItem<Expense[]>('expenses', MOCK_EXPENSES);
     if (branchId) return expenses.filter((e) => e.branch_id === branchId);
@@ -491,57 +516,85 @@ export const DataService = {
   },
 
   async createExpense(expense: Omit<Expense, 'id' | 'created_at'>): Promise<Expense> {
-    const newExp: Expense = {
-      ...expense,
-      id: `exp-${Date.now()}`,
-      created_at: new Date().toISOString(),
-    };
-    if (isSupabaseConfigured()) {
-      const supabase = createClient();
-      await supabase.from('expenses').insert(newExp);
-    }
-    const list = getLocalItem<Expense[]>('expenses', MOCK_EXPENSES);
-    list.unshift(newExp);
-    setLocalItem('expenses', list);
-    return newExp;
+    return this.saveExpense(expense);
   },
 
   async saveExpense(expense: Partial<Expense>): Promise<Expense> {
-    const list = getLocalItem<Expense[]>('expenses', MOCK_EXPENSES);
-    let updated: Expense;
-    if (expense.id) {
-      const idx = list.findIndex((e) => e.id === expense.id);
-      if (idx !== -1) {
-        list[idx] = { ...list[idx], ...expense };
-        updated = list[idx];
-      } else {
-        updated = expense as Expense;
-      }
-    } else {
-      updated = {
-        id: `exp-${Date.now()}`,
-        branch_id: expense.branch_id!,
-        branch_name: expense.branch_name,
-        category_name: expense.category_name || 'Bahan Baku',
-        title: expense.title || 'Pengeluaran Baru',
-        amount: expense.amount || 0,
-        payment_method: expense.payment_method || 'kas_cabang',
-        notes: expense.notes || '',
-        created_by: expense.created_by || '',
-        created_by_name: expense.created_by_name || '',
-        status: expense.status || 'approved',
-        expense_date: expense.expense_date || new Date().toISOString().split('T')[0],
-        created_at: new Date().toISOString(),
-      };
-      list.unshift(updated);
+    const bList = await this.getBranches();
+    const uList = await this.getUsers();
+
+    // 1. Ensure valid branch UUID
+    let validBranchId = expense.branch_id;
+    if (!isValidUuid(validBranchId)) {
+      const matched = bList.find((b) => b.id === expense.branch_id || b.code === expense.branch_id || b.name === expense.branch_name);
+      validBranchId = matched?.id || bList[0]?.id || 'd9ec11ac-c42f-4904-b932-20abbe83e89e';
     }
 
+    // 2. Ensure valid user UUID
+    let validUserId = expense.created_by;
+    if (!isValidUuid(validUserId)) {
+      const matched = uList.find((u) => u.id === expense.created_by || u.username === expense.created_by);
+      validUserId = matched?.id || uList[0]?.id || '11111111-1111-1111-1111-111111111111';
+    }
+
+    const validId = (expense.id && isValidUuid(expense.id)) ? expense.id : generateUuid();
+    const branchName = bList.find((b) => b.id === validBranchId)?.name || expense.branch_name || 'Cabang';
+    const creatorName = uList.find((u) => u.id === validUserId)?.full_name || expense.created_by_name || 'Karyawan';
+
+    const fullExpense: Expense = {
+      id: validId,
+      branch_id: validBranchId,
+      branch_name: branchName,
+      category_id: (expense.category_id && isValidUuid(expense.category_id)) ? expense.category_id : undefined,
+      category_name: expense.category_name || 'Bahan Baku',
+      title: expense.title || 'Pengeluaran Baru',
+      amount: Number(expense.amount) || 0,
+      payment_method: expense.payment_method || 'kas_cabang',
+      notes: expense.notes || '',
+      receipt_url: expense.receipt_url || undefined,
+      created_by: validUserId,
+      created_by_name: creatorName,
+      status: expense.status || 'approved',
+      approved_by: expense.approved_by,
+      expense_date: expense.expense_date || new Date().toISOString().split('T')[0],
+      created_at: expense.created_at || new Date().toISOString(),
+    };
+
     if (isSupabaseConfigured()) {
-      const supabase = createClient();
-      await supabase.from('expenses').upsert(updated);
+      try {
+        const supabase = createClient();
+        const dbPayload = {
+          id: fullExpense.id,
+          branch_id: fullExpense.branch_id,
+          category_id: fullExpense.category_id || null,
+          title: fullExpense.title,
+          amount: fullExpense.amount,
+          payment_method: fullExpense.payment_method,
+          notes: fullExpense.notes || null,
+          receipt_url: fullExpense.receipt_url || null,
+          created_by: fullExpense.created_by,
+          status: fullExpense.status,
+          approved_by: fullExpense.approved_by || null,
+          expense_date: fullExpense.expense_date,
+        };
+        const { error } = await supabase.from('expenses').upsert(dbPayload);
+        if (error) {
+          console.error('Supabase expense upsert error:', error);
+        }
+      } catch (e) {
+        console.warn('Supabase expense sync skipped:', e);
+      }
+    }
+
+    const list = getLocalItem<Expense[]>('expenses', MOCK_EXPENSES);
+    const existingIdx = list.findIndex((e) => e.id === fullExpense.id);
+    if (existingIdx !== -1) {
+      list[existingIdx] = fullExpense;
+    } else {
+      list.unshift(fullExpense);
     }
     setLocalItem('expenses', list);
-    return updated;
+    return fullExpense;
   },
 
   async deleteExpense(expenseId: string): Promise<void> {
@@ -626,11 +679,24 @@ export const DataService = {
   async getAttendance(branchId?: string, date?: string): Promise<AttendanceRecord[]> {
     if (isSupabaseConfigured()) {
       const supabase = createClient();
-      let query = supabase.from('attendance').select('*');
+      let query = supabase.from('attendance').select('*').order('created_at', { ascending: false });
       if (branchId) query = query.eq('branch_id', branchId);
       if (date) query = query.eq('date', date);
       const { data, error } = await query;
-      if (!error && data) return data;
+      if (!error && data) {
+        const [bList, uList] = await Promise.all([this.getBranches(), this.getUsers()]);
+        const bMap = new Map(bList.map((b) => [b.id, b.name]));
+        const uMap = new Map(uList.map((u) => [u.id, u]));
+        return data.map((att: any) => {
+          const userObj = uMap.get(att.user_id);
+          return {
+            ...att,
+            user_name: userObj?.full_name || att.user_name || 'Karyawan',
+            user_role: userObj?.role || att.user_role || 'penjual',
+            branch_name: bMap.get(att.branch_id) || att.branch_name || 'Cabang',
+          };
+        });
+      }
     }
     const list = getLocalItem<AttendanceRecord[]>('attendance', MOCK_ATTENDANCE);
     return list.filter((a) => {
@@ -642,27 +708,35 @@ export const DataService = {
 
   async clockIn(userId: string, userName: string, userRole: string, branchId: string, branchName: string): Promise<AttendanceRecord> {
     const today = new Date().toISOString().split('T')[0];
-    const list = getLocalItem<AttendanceRecord[]>('attendance', MOCK_ATTENDANCE);
-    const existingIdx = list.findIndex((a) => a.user_id === userId && a.date === today);
+    const bList = await this.getBranches();
+    const uList = await this.getUsers();
 
-    if (existingIdx !== -1 && list[existingIdx].clock_in) {
-      return list[existingIdx];
+    // 1. Resolve branch UUID
+    let validBranchId = branchId;
+    if (!isValidUuid(validBranchId)) {
+      const matched = bList.find((b) => b.id === branchId || b.code === branchId || b.name.toLowerCase() === (branchName || '').toLowerCase());
+      validBranchId = matched?.id || bList[0]?.id || 'd9ec11ac-c42f-4904-b932-20abbe83e89e';
     }
 
-    const validRecordId = (existingIdx !== -1 && list[existingIdx].id && list[existingIdx].id.length > 20)
-      ? list[existingIdx].id
-      : (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `88888888-8888-4888-8888-${Date.now().toString().padStart(12, '0').slice(-12)}`);
+    // 2. Resolve user UUID
+    let validUserId = userId;
+    if (!isValidUuid(validUserId)) {
+      const matched = uList.find((u) => u.id === userId || u.username === userName || u.full_name === userName);
+      validUserId = matched?.id || uList[0]?.id || '11111111-1111-1111-1111-111111111111';
+    }
 
-    const validUserId = (userId && userId.length > 20) ? userId : '44444444-4444-4444-4444-444444444444';
-    const validBranchId = (branchId && branchId.length > 20) ? branchId : 'b1111111-1111-1111-1111-111111111111';
+    const validRecordId = generateUuid();
+    const resolvedBranchName = bList.find((b) => b.id === validBranchId)?.name || branchName || 'Cidodol';
+    const resolvedUserName = uList.find((u) => u.id === validUserId)?.full_name || userName || 'Karyawan';
+    const resolvedUserRole = uList.find((u) => u.id === validUserId)?.role || userRole || 'penjual';
 
     const record: AttendanceRecord = {
       id: validRecordId,
       user_id: validUserId,
-      user_name: userName,
-      user_role: userRole,
+      user_name: resolvedUserName,
+      user_role: resolvedUserRole,
       branch_id: validBranchId,
-      branch_name: branchName,
+      branch_name: resolvedBranchName,
       date: today,
       clock_in: new Date().toISOString(),
       status: 'hadir',
@@ -673,12 +747,26 @@ export const DataService = {
     if (isSupabaseConfigured()) {
       try {
         const supabase = createClient();
-        await supabase.from('attendance').upsert(record);
+        const dbPayload = {
+          id: validRecordId,
+          user_id: validUserId,
+          branch_id: validBranchId,
+          date: today,
+          clock_in: record.clock_in,
+          status: 'hadir',
+          notes: record.notes,
+        };
+        const { error } = await supabase.from('attendance').upsert(dbPayload, { onConflict: 'user_id,date' });
+        if (error) {
+          console.error('Supabase clockIn error:', error);
+        }
       } catch (e) {
-        console.warn('Supabase attendance sync skipped:', e);
+        console.warn('Supabase attendance sync error:', e);
       }
     }
 
+    const list = getLocalItem<AttendanceRecord[]>('attendance', MOCK_ATTENDANCE);
+    const existingIdx = list.findIndex((a) => a.user_id === validUserId && a.date === today);
     if (existingIdx !== -1) list[existingIdx] = record;
     else list.unshift(record);
 
@@ -688,18 +776,27 @@ export const DataService = {
 
   async clockOut(userId: string): Promise<AttendanceRecord | null> {
     const today = new Date().toISOString().split('T')[0];
-    const list = getLocalItem<AttendanceRecord[]>('attendance', MOCK_ATTENDANCE);
-    const idx = list.findIndex((a) => a.user_id === userId && a.date === today);
-    if (idx !== -1) {
-      list[idx].clock_out = new Date().toISOString();
-      if (isSupabaseConfigured()) {
-        try {
-          const supabase = createClient();
-          await supabase.from('attendance').update({ clock_out: list[idx].clock_out }).eq('id', list[idx].id);
-        } catch (e) {
-          console.warn('Supabase attendance clockout skipped:', e);
-        }
+    const uList = await this.getUsers();
+    let validUserId = userId;
+    if (!isValidUuid(validUserId)) {
+      const matched = uList.find((u) => u.id === userId || u.username === userId);
+      validUserId = matched?.id || userId;
+    }
+
+    const isoNow = new Date().toISOString();
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = createClient();
+        await supabase.from('attendance').update({ clock_out: isoNow }).eq('user_id', validUserId).eq('date', today);
+      } catch (e) {
+        console.warn('Supabase attendance clockout error:', e);
       }
+    }
+
+    const list = getLocalItem<AttendanceRecord[]>('attendance', MOCK_ATTENDANCE);
+    const idx = list.findIndex((a) => (a.user_id === validUserId || a.user_id === userId) && a.date === today);
+    if (idx !== -1) {
+      list[idx].clock_out = isoNow;
       setLocalItem('attendance', list);
       return list[idx];
     }
