@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { DailyReport, SaleTransaction, Expense } from '@/types';
 import { DataService } from '@/lib/services/dataService';
 import { formatRupiah, formatDate } from '@/lib/utils/formatters';
-import { ClipboardList, Plus, Printer, Calendar, Store, Trash2 } from 'lucide-react';
+import { ClipboardList, Plus, Printer, Calendar, Store, Trash2, FileSpreadsheet } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 
 export default function DailyReportsPage() {
@@ -217,7 +218,16 @@ export default function DailyReportsPage() {
           <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Laporan Harian & Tutup Kas</h1>
           <p className="text-xs text-slate-500 mt-0.5">Rekapitulasi penjualan, penerimaan tunai, pengeluaran & rekonsiliasi kas</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {(isOwner || isAdminPusat) && (
+            <Link
+              href="/import-sales"
+              className="py-3 px-4 rounded-2xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-[#3d1e0f] font-black text-xs flex items-center gap-1.5 transition-colors shadow-xs"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+              <span>Import Excel WhatsApp</span>
+            </Link>
+          )}
           <button
             onClick={handlePrintPDF}
             className="py-3 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-2 transition-colors"

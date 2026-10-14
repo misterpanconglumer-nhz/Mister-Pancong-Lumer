@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
-import { Store, ChevronDown, LogOut, Settings, Calculator, LayoutDashboard, UtensilsCrossed, Users, Banknote, ClipboardList, ShoppingCart } from 'lucide-react';
+import { Store, ChevronDown, LogOut, Settings, Calculator, LayoutDashboard, UtensilsCrossed, Users, Banknote, ClipboardList, ShoppingCart, FileSpreadsheet } from 'lucide-react';
 import CalculatorModal from '@/components/common/CalculatorModal';
 
 export const Navbar: React.FC = () => {
@@ -166,6 +166,14 @@ export const Navbar: React.FC = () => {
                         >
                           <ClipboardList className="w-4 h-4 text-blue-600" />
                           <span>Laporan Harian & Kas</span>
+                        </Link>
+                        <Link
+                          href="/import-sales"
+                          onClick={() => setShowRoleMenu(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-800 hover:bg-amber-50 hover:text-[#3d1e0f] font-semibold"
+                        >
+                          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                          <span>Import Laporan WhatsApp</span>
                         </Link>
                         <Link
                           href="/pos"

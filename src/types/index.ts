@@ -162,6 +162,59 @@ export interface DailyReport {
   reviewed_by?: string;
   reviewed_at?: string;
   created_at?: string;
+
+  // Extended fields for WhatsApp Excel Import
+  source?: 'pos' | 'whatsapp_import';
+  raw_text?: string;
+  dough_ordered?: string;
+  portions_sold?: string;
+  dough_leftover?: string;
+  transfer_sales?: number;
+  qris_sales?: number;
+  is_revision?: boolean;
+  revision_by?: string;
+  original_omzet?: number;
+  revision_notes?: string;
+  verification_status?: 'verified' | 'unverified' | 'revision' | 'duplicate';
+}
+
+export interface WhatsAppReportItem {
+  id?: string;
+  tanggal_laporan: string;
+  tanggal_chat?: string;
+  waktu_chat?: string;
+  pengirim: string;
+  peran_pesan?: string;
+  pemesanan_adonan?: string;
+  terjual_teks?: string;
+  sisa_adonan?: string;
+  omzet_rp: number;
+  pengeluaran_total_rp: number;
+  masuk_qr_rp: number;
+  masuk_tf_rp: number;
+  saldo_cash_rp: number;
+  status_verifikasi: string;
+  isi_laporan_lengkap?: string;
+
+  // Metadata
+  is_duplicate?: boolean;
+  duplicate_count?: number;
+  is_revision?: boolean;
+  revision_by?: string;
+  original_omzet?: number;
+  revision_notes?: string;
+  selected_for_import?: boolean;
+}
+
+export interface WhatsAppExpenseItem {
+  tanggal_laporan: string;
+  tanggal_chat?: string;
+  pengirim: string;
+  peran_pesan?: string;
+  rincian: string;
+  nominal_rp: number;
+  status_verifikasi: string;
+  category_name?: string;
 }
 
 export interface Shift {

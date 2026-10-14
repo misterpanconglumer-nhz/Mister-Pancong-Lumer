@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { SaleTransaction, Expense, DailyReport, Branch } from '@/types';
 import { DataService } from '@/lib/services/dataService';
 import { formatRupiah } from '@/lib/utils/formatters';
-import { LayoutDashboard, TrendingUp, DollarSign, ShoppingBag, Wallet, Store, ShieldCheck, AlertCircle, Sparkles, Award, Lock, UtensilsCrossed, Users, Banknote, ClipboardList, Settings, ArrowRight, Clock } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, DollarSign, ShoppingBag, Wallet, Store, ShieldCheck, AlertCircle, Sparkles, Award, Lock, UtensilsCrossed, Users, Banknote, ClipboardList, Settings, ArrowRight, Clock, FileSpreadsheet } from 'lucide-react';
 
 export default function DashboardPage() {
   const { isOwner, isAdminPusat } = useAuth();
@@ -60,12 +60,22 @@ export default function DashboardPage() {
   // Calculate metrics
   const todayStr = new Date().toISOString().split('T')[0];
   const todaySales = sales.filter((s) => s.created_at.startsWith(todayStr));
-  const todayOmzet = todaySales.reduce((sum, s) => sum + s.total_amount, 0);
+  const todayReports = reports.filter((r) => r.report_date === todayStr);
+  const todayOmzet = todaySales.length > 0
+    ? todaySales.reduce((sum, s) => sum + s.total_amount, 0)
+    : todayReports.reduce((sum, r) => sum + (r.gross_sales || 0), 0);
 
-  const monthlyOmzet = sales.reduce((sum, s) => sum + s.total_amount, 0);
+  // Overall Omzet: Calculate from sales, plus any daily reports whose dates are not already in sales
+  const salesDates = new Set(sales.map((s) => s.created_at.slice(0, 10)));
+  const reportsOnlyOmzet = reports
+    .filter((r) => !salesDates.has(r.report_date) && r.status !== 'pending')
+    .reduce((sum, r) => sum + (r.gross_sales || 0), 0);
+  const totalOmzetCombined = sales.reduce((sum, s) => sum + s.total_amount, 0) + reportsOnlyOmzet;
+
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
   const pendingExpensesCount = expenses.filter((e) => e.status === 'pending').length;
   const pendingReportsCount = reports.filter((r) => r.status === 'pending').length;
+  const revisionReportsCount = reports.filter((r) => r.status === 'revision_requested' || r.is_revision).length;
 
   const productSalesCount: Record<string, number> = {};
   sales.forEach((s) => {
@@ -160,6 +170,19 @@ export default function DashboardPage() {
           </Link>
 
           <Link
+            href="/import-sales"
+            className="p-3.5 rounded-2xl bg-amber-50/80 hover:bg-amber-100/90 border border-amber-200/60 flex flex-col items-center text-center gap-2 group transition-all"
+          >
+            <div className="w-10 h-10 rounded-xl bg-emerald-700 text-emerald-100 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+              <FileSpreadsheet className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-900 leading-tight">Import Laporan</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">WhatsApp (.xlsx)</p>
+            </div>
+          </Link>
+
+          <Link
             href="/pos"
             className="p-3.5 rounded-2xl bg-amber-50/80 hover:bg-amber-100/90 border border-amber-200/60 flex flex-col items-center text-center gap-2 group transition-all"
           >
@@ -207,24 +230,24 @@ export default function DashboardPage() {
         
         <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-2">
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-bold">Omzet Bulan Ini</span>
+            <span className="text-xs font-bold">Omzet Terakumulasi</span>
             <div className="w-8 h-8 rounded-xl bg-amber-100 text-brand-900 flex items-center justify-center">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-lg font-extrabold text-brand-900">{formatRupiah(monthlyOmzet)}</p>
-          <p className="text-[10px] text-slate-400">Total akumulasi penjualan</p>
+          <p className="text-lg font-extrabold text-brand-900">{formatRupiah(totalOmzetCombined)}</p>
+          <p className="text-[10px] text-slate-400">Total akumulasi penjualan & laporan kas</p>
         </div>
 
         <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-2">
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-bold">Total Transaksi</span>
+            <span className="text-xs font-bold">Total Transaksi / Laporan</span>
             <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
               <ShoppingBag className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-lg font-extrabold text-slate-900">{sales.length} TRX</p>
-          <p className="text-[10px] text-slate-400">Hari ini: {todaySales.length} TRX</p>
+          <p className="text-lg font-extrabold text-slate-900">{sales.length + reports.length} Data</p>
+          <p className="text-[10px] text-slate-400">{reports.length} lap. harian | {sales.length} TRX POS</p>
         </div>
 
         <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-2">
@@ -235,7 +258,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <p className="text-lg font-extrabold text-rose-600">{formatRupiah(totalExpenses)}</p>
-          <p className="text-[10px] text-slate-400">Bahan baku, es & operasional</p>
+          <p className="text-[10px] text-slate-400">{expenses.length} pengeluaran tercatat</p>
         </div>
 
         <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-2">
@@ -245,11 +268,71 @@ export default function DashboardPage() {
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-lg font-extrabold text-emerald-700">{formatRupiah(monthlyOmzet - totalExpenses)}</p>
+          <p className="text-lg font-extrabold text-emerald-700">{formatRupiah(totalOmzetCombined - totalExpenses)}</p>
           <p className="text-[10px] text-slate-400">(Omzet - Pengeluaran)</p>
         </div>
 
       </div>
+
+      {/* WhatsApp & Daily Reports Integrated Section (Requirement 10) */}
+      {reports.length > 0 && (
+        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-amber-900/10 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shadow-xs">
+                <FileSpreadsheet className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-black text-slate-900">Rekap Laporan Harian & WhatsApp Terintegrasi</h2>
+                <p className="text-xs text-slate-500">Hasil sinkronisasi database laporan kasir dan rekap Excel WhatsApp</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Link
+                href="/import-sales"
+                className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-[#3d1e0f] border border-amber-200 text-xs font-black transition-colors"
+              >
+                + Import File Baru
+              </Link>
+              <Link
+                href="/daily-reports"
+                className="px-3.5 py-2 rounded-xl bg-[#3d1e0f] text-amber-100 text-xs font-black hover:bg-amber-950 transition-colors shadow-xs"
+              >
+                Lihat Detail Laporan ({reports.length})
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/60 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-emerald-800">Total Omzet Laporan</span>
+              <p className="text-base sm:text-lg font-black text-emerald-950">
+                {formatRupiah(reports.reduce((sum, r) => sum + (r.gross_sales || 0), 0))}
+              </p>
+              <p className="text-[10px] text-emerald-700 font-medium">Dari {reports.length} hari pembukuan</p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/60 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-amber-800">Perlu Verifikasi</span>
+              <p className="text-base sm:text-lg font-black text-amber-950">{pendingReportsCount} Hari</p>
+              <p className="text-[10px] text-amber-700 font-medium">Belum diverifikasi final</p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-200/60 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-blue-800">Revisi Nasrullah</span>
+              <p className="text-base sm:text-lg font-black text-blue-950">{revisionReportsCount} Hari</p>
+              <p className="text-[10px] text-blue-700 font-medium">Koreksi omzet telah disesuaikan</p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-rose-50/70 border border-rose-200/60 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-rose-800">Total Pengeluaran</span>
+              <p className="text-base sm:text-lg font-black text-rose-700">{formatRupiah(totalExpenses)}</p>
+              <p className="text-[10px] text-slate-500 font-medium">{expenses.length} pengeluaran tercatat</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Branch Performance Comparison */}
       <div className="space-y-3">
@@ -261,7 +344,12 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {branches.map((b) => {
             const bSales = sales.filter((s) => s.branch_id === b.id);
-            const bOmzet = bSales.reduce((sum, s) => sum + s.total_amount, 0);
+            const bReports = reports.filter((r) => r.branch_id === b.id);
+            const bSalesDates = new Set(bSales.map((s) => s.created_at.slice(0, 10)));
+            const bReportsOnlyOmzet = bReports
+              .filter((r) => !bSalesDates.has(r.report_date))
+              .reduce((sum, r) => sum + (r.gross_sales || 0), 0);
+            const bOmzet = bSales.reduce((sum, s) => sum + s.total_amount, 0) + bReportsOnlyOmzet;
             const bExpenses = expenses.filter((e) => e.branch_id === b.id).reduce((sum, e) => sum + e.amount, 0);
 
             return (
@@ -273,7 +361,9 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <h3 className="font-extrabold text-base text-slate-900">Cabang {b.name}</h3>
-                      <p className="text-[11px] text-slate-400">{bSales.length} Transaksi</p>
+                      <p className="text-[11px] text-slate-400">
+                        {bSales.length} Transaksi POS | {bReports.length} Laporan Kasir
+                      </p>
                     </div>
                   </div>
                   <span className="text-sm font-extrabold text-brand-900">{formatRupiah(bOmzet)}</span>
