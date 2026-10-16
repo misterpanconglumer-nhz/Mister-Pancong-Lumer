@@ -4,12 +4,13 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { SaleTransaction } from '@/types';
 import { DataService } from '@/lib/services/dataService';
-import { formatRupiah, formatDateTime } from '@/lib/utils/formatters';
-import { Search, Filter, Receipt, Ban, Eye, Printer, Calendar, Store, User, RotateCcw, Trash2 } from 'lucide-react';
+import { formatRupiah, formatDateTime, formatDate } from '@/lib/utils/formatters';
+import { Search, Filter, Receipt, Ban, Eye, Printer, Calendar, Store, User, RotateCcw, Trash2, DollarSign } from 'lucide-react';
 import ReceiptModal from '@/components/pos/ReceiptModal';
 
 export default function SalesHistoryPage() {
   const { user, activeBranch, branches, isOwner, isAdminPusat, isAdminCabang } = useAuth();
+  const isKasir = !isOwner && !isAdminPusat;
 
   const [sales, setSales] = useState<SaleTransaction[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -39,16 +40,18 @@ export default function SalesHistoryPage() {
     fetchSales();
   }, []);
 
-  // Preset Date Handlers
+  // Preset Date Handlers & Strings
+  const todayStr = new Date().toISOString().split('T')[0];
+  const yesterdayObj = new Date();
+  yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+  const yesterdayStr = yesterdayObj.toISOString().split('T')[0];
+
   const handleSetToday = () => {
-    const today = new Date().toISOString().split('T')[0];
-    setFilterDate(today);
+    setFilterDate(todayStr);
   };
 
   const handleSetYesterday = () => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    setFilterDate(d.toISOString().split('T')[0]);
+    setFilterDate(yesterdayStr);
   };
 
   const handleClearFilters = () => {
@@ -135,9 +138,32 @@ export default function SalesHistoryPage() {
             <Receipt className="w-4 h-4 text-amber-600" />
             <span>{filteredSales.length} Transaksi</span>
           </div>
-          <div className="px-3.5 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-extrabold text-xs">
-            Omzet: {formatRupiah(totalOmzetFiltered)}
-          </div>
+
+          {isKasir ? (
+            filterDate ? (
+              <div className="px-3.5 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-extrabold text-xs flex items-center gap-1.5 animate-in fade-in">
+                <DollarSign className="w-4 h-4 text-emerald-600" />
+                <span>
+                  Omzet ({filterDate === todayStr ? 'Hari Ini' : filterDate === yesterdayStr ? 'Kemarin' : formatDate(filterDate)}): <strong>{formatRupiah(totalOmzetFiltered)}</strong>
+                </span>
+              </div>
+            ) : (
+              <div
+                className="px-3.5 py-2 rounded-2xl bg-slate-100 border border-slate-200 text-slate-500 font-bold text-xs flex items-center gap-1.5"
+                title="Pilih parameter tanggal di bawah untuk melihat total omzet"
+              >
+                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                <span>Omzet: Klik Parameter Tanggal</span>
+              </div>
+            )
+          ) : (
+            <div className="px-3.5 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-extrabold text-xs">
+              {filterDate
+                ? `Omzet (${filterDate === todayStr ? 'Hari Ini' : filterDate === yesterdayStr ? 'Kemarin' : formatDate(filterDate)}): `
+                : 'Total Omzet Keseluruhan: '}
+              {formatRupiah(totalOmzetFiltered)}
+            </div>
+          )}
         </div>
       </div>
 
@@ -158,47 +184,64 @@ export default function SalesHistoryPage() {
           </div>
 
           {/* Date Parameter Filter */}
-          <div className="relative md:col-span-5 flex flex-wrap items-center gap-2">
+          <div className="relative md:col-span-7 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSetToday}
+              className={`px-3.5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-1.5 active:scale-95 ${
+                filterDate === todayStr
+                  ? 'bg-[#3d1e0f] text-amber-100 shadow-md ring-2 ring-amber-400'
+                  : 'bg-amber-100 hover:bg-amber-200 text-[#3d1e0f]'
+              }`}
+              title="Filter Transaksi & Omzet Hari Ini"
+            >
+              <span>Hari Ini</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSetYesterday}
+              className={`px-3.5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-1.5 active:scale-95 ${
+                filterDate === yesterdayStr
+                  ? 'bg-[#3d1e0f] text-amber-100 shadow-md ring-2 ring-amber-400'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              }`}
+              title="Filter Transaksi & Omzet Kemarin"
+            >
+              <span>Kemarin</span>
+            </button>
             <div className="relative flex-1 min-w-[140px]">
               <Calendar className="w-4 h-4 text-amber-600 absolute left-3 top-3.5" />
               <input
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+                className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f] transition-all ${
+                  filterDate && filterDate !== todayStr && filterDate !== yesterdayStr
+                    ? 'border-amber-500 ring-2 ring-amber-400 bg-amber-50/50'
+                    : 'border-slate-200'
+                }`}
+                title="Pilih Parameter Tanggal Tertentu"
               />
             </div>
-            <button
-              onClick={handleSetToday}
-              className="px-3 py-2.5 bg-amber-100 hover:bg-amber-200 text-[#3d1e0f] rounded-2xl text-xs font-extrabold shrink-0 transition-colors"
-              title="Filter Transaksi Hari Ini"
-            >
-              Hari Ini
-            </button>
-            <button
-              onClick={handleSetYesterday}
-              className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold shrink-0 transition-colors"
-              title="Filter Transaksi Kemarin"
-            >
-              Kemarin
-            </button>
           </div>
 
           {/* Branch Picker (Owner & Admin) */}
           {(isOwner || isAdminPusat) && (
-            <div className="md:col-span-3">
-              <select
-                value={filterBranchId}
-                onChange={(e) => setFilterBranchId(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
-              >
-                <option value="all">Semua Cabang</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    Cabang {b.name}
-                  </option>
-                ))}
-              </select>
+            <div className="md:col-span-12 pt-1 border-t border-slate-100 flex items-center justify-end">
+              <div className="w-full sm:w-64">
+                <select
+                  value={filterBranchId}
+                  onChange={(e) => setFilterBranchId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+                >
+                  <option value="all">Semua Cabang</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      Cabang {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
 
@@ -210,7 +253,11 @@ export default function SalesHistoryPage() {
             <div className="flex items-center gap-2 text-slate-500">
               <Filter className="w-3.5 h-3.5 text-amber-600" />
               <span>Filter Aktif:</span>
-              {filterDate && <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-[#3d1e0f] font-mono font-bold">Tanggal: {filterDate}</span>}
+              {filterDate && (
+                <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-[#3d1e0f] font-mono font-bold">
+                  {filterDate === todayStr ? 'Hari Ini' : filterDate === yesterdayStr ? 'Kemarin' : `Tanggal: ${filterDate}`}
+                </span>
+              )}
               {filterBranchId !== 'all' && (
                 <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-[#3d1e0f] font-bold">
                   Cabang: {branches.find((b) => b.id === filterBranchId)?.name || filterBranchId}
@@ -229,6 +276,41 @@ export default function SalesHistoryPage() {
           </div>
         )}
       </div>
+
+      {/* Banner Khusus Akun Kasir */}
+      {isKasir && (
+        <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-3xl text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-amber-700 shrink-0" />
+            <span>
+              {filterDate ? (
+                <>
+                  Menampilkan data & omzet{' '}
+                  <strong className="text-slate-900">
+                    {filterDate === todayStr ? 'Hari Ini' : filterDate === yesterdayStr ? 'Kemarin' : formatDate(filterDate)}
+                  </strong>
+                  : Total Omzet Terhitung{' '}
+                  <strong className="text-emerald-700 text-sm font-extrabold">{formatRupiah(totalOmzetFiltered)}</strong>
+                </>
+              ) : (
+                <>
+                  Mode Akun Kasir: Total omzet keseluruhan disembunyikan. Silakan klik tombol{' '}
+                  <strong>Hari Ini</strong>, <strong>Kemarin</strong>, atau pilih <strong>Parameter Tanggal</strong> di atas untuk melihat omzet shift Anda.
+                </>
+              )}
+            </span>
+          </div>
+          {!filterDate && (
+            <button
+              type="button"
+              onClick={handleSetToday}
+              className="px-3 py-1.5 rounded-xl bg-[#3d1e0f] text-amber-100 font-bold text-xs hover:bg-amber-950 active:scale-95 transition-all self-start sm:self-auto shrink-0"
+            >
+              Tampilkan Hari Ini
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Sales List Table */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">

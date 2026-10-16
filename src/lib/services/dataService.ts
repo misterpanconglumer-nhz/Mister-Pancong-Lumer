@@ -282,7 +282,7 @@ export const DataService = {
   async saveCategory(category: Partial<Category>): Promise<Category> {
     const list = await this.getCategories();
     let updated: Category;
-    if (category.id) {
+    if (category.id && isValidUuid(category.id)) {
       const idx = list.findIndex((c) => c.id === category.id);
       if (idx !== -1) {
         list[idx] = { ...list[idx], ...category };
@@ -292,7 +292,7 @@ export const DataService = {
       }
     } else {
       updated = {
-        id: `cat-${Date.now()}`,
+        id: generateUuid(),
         name: category.name || 'Kategori Baru',
         slug: (category.name || 'kategori').toLowerCase().replace(/\s+/g, '-'),
         sort_order: list.length + 1,
@@ -302,7 +302,16 @@ export const DataService = {
 
     if (isSupabaseConfigured()) {
       const supabase = createClient();
-      await supabase.from('categories').upsert(updated);
+      const { error } = await supabase.from('categories').upsert({
+        id: updated.id,
+        name: updated.name,
+        slug: updated.slug,
+        sort_order: updated.sort_order,
+      });
+      if (error) {
+        console.error('Supabase saveCategory error:', error);
+        throw new Error(`Gagal menyimpan kategori ke database: ${error.message}`);
+      }
     }
     setLocalItem('categories', list);
     return updated;
@@ -310,8 +319,12 @@ export const DataService = {
 
   async deleteCategory(categoryId: string): Promise<void> {
     if (isSupabaseConfigured()) {
-      const supabase = createClient();
-      await supabase.from('categories').delete().eq('id', categoryId);
+      try {
+        const supabase = createClient();
+        await supabase.from('categories').delete().eq('id', categoryId);
+      } catch (err) {
+        console.warn('Supabase deleteCategory error:', err);
+      }
     }
     const list = await this.getCategories();
     const filtered = list.filter((c) => c.id !== categoryId);
@@ -338,20 +351,36 @@ export const DataService = {
   },
 
   async saveProduct(product: Partial<Product>): Promise<Product> {
-    const products = await this.getProducts();
+    const [products, categories] = await Promise.all([this.getProducts(), this.getCategories()]);
+    
+    // Resolve a valid category UUID if available
+    let targetCategoryId: string | null = null;
+    if (product.category_id && isValidUuid(product.category_id)) {
+      targetCategoryId = product.category_id;
+    } else {
+      const validCat = categories.find((c) => isValidUuid(c.id));
+      targetCategoryId = validCat ? validCat.id : null;
+    }
+
     let updated: Product;
-    if (product.id) {
+    if (product.id && isValidUuid(product.id)) {
       const idx = products.findIndex((p) => p.id === product.id);
       if (idx !== -1) {
-        products[idx] = { ...products[idx], ...product, variants: [], updated_at: new Date().toISOString() };
+        products[idx] = {
+          ...products[idx],
+          ...product,
+          category_id: targetCategoryId || products[idx].category_id || '',
+          variants: [],
+          updated_at: new Date().toISOString(),
+        };
         updated = products[idx];
       } else {
-        updated = { ...(product as Product), variants: [] };
+        updated = { ...(product as Product), category_id: targetCategoryId || '', variants: [] };
       }
     } else {
       updated = {
-        id: `prod-${Date.now()}`,
-        category_id: product.category_id || 'cat-1',
+        id: generateUuid(),
+        category_id: targetCategoryId || '',
         name: product.name || 'Produk Baru',
         description: product.description || '',
         image_url: product.image_url || 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=500&q=80',
@@ -365,15 +394,28 @@ export const DataService = {
 
     if (isSupabaseConfigured()) {
       const supabase = createClient();
-      await supabase.from('products').upsert({
+      const payload: any = {
         id: updated.id,
-        category_id: updated.category_id,
         name: updated.name,
-        description: updated.description,
-        image_url: updated.image_url,
+        description: updated.description || '',
+        image_url: updated.image_url || null,
         base_price: updated.base_price,
-        is_active: updated.is_active,
-      });
+        is_active: updated.is_active ?? true,
+      };
+      if (targetCategoryId && isValidUuid(targetCategoryId)) {
+        payload.category_id = targetCategoryId;
+      } else {
+        payload.category_id = null;
+      }
+
+      const { data, error } = await supabase.from('products').upsert(payload).select();
+      if (error) {
+        console.error('Supabase saveProduct error:', error);
+        throw new Error(`Gagal menyimpan produk ke database: ${error.message}`);
+      }
+      if (data && data[0]) {
+        updated = { ...updated, ...data[0], variants: [] };
+      }
 
       // Clear any remaining product_variants if any
       await supabase.from('product_variants').delete().eq('product_id', updated.id);

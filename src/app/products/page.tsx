@@ -80,25 +80,36 @@ export default function ProductsManagementPage() {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      alert('Nama menu/produk tidak boleh kosong!');
+      return;
+    }
+
+    const priceNum = Number(basePrice);
+    if (isNaN(priceNum) || priceNum < 0) {
+      alert('Harga produk harus berupa angka nominal yang valid!');
+      return;
+    }
 
     setIsSubmittingProduct(true);
     try {
       await DataService.saveProduct({
         id: editingProductId || undefined,
-        name,
-        description,
-        category_id: categoryId || categories[0]?.id || 'cat-1',
-        base_price: Number(basePrice) || 0,
-        image_url: imageUrl || 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=500&q=80',
+        name: name.trim(),
+        description: description.trim(),
+        category_id: categoryId || categories[0]?.id || undefined,
+        base_price: priceNum,
+        image_url: imageUrl.trim() || 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=500&q=80',
         is_active: isActive,
         variants: [],
       });
 
       setShowProductModal(false);
+      alert(editingProductId ? '✓ Menu berhasil diperbarui!' : '✓ Menu baru berhasil ditambahkan!');
       await fetchCatalog();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save product:', err);
+      alert('Gagal menyimpan menu: ' + (err?.message || 'Terjadi kesalahan sistem'));
     } finally {
       setIsSubmittingProduct(false);
     }
@@ -106,15 +117,20 @@ export default function ProductsManagementPage() {
 
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCategoryName.trim()) return;
+    if (!newCategoryName.trim()) {
+      alert('Nama kategori tidak boleh kosong!');
+      return;
+    }
 
     setIsSubmittingCategory(true);
     try {
       await DataService.saveCategory({ name: newCategoryName.trim() });
       setNewCategoryName('');
+      alert('✓ Kategori baru berhasil ditambahkan!');
       await fetchCatalog();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save category:', err);
+      alert('Gagal menambah kategori: ' + (err?.message || 'Terjadi kesalahan sistem'));
     } finally {
       setIsSubmittingCategory(false);
     }
@@ -164,7 +180,7 @@ export default function ProductsManagementPage() {
           <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Manajemen Kategori, Produk & Varian</h1>
           <p className="text-xs text-slate-500 mt-0.5">Kelola kategori menu, varian rasa, topping, dan harga produk</p>
         </div>
-        {(isOwner || isAdminPusat) && (
+        {(isOwner || isAdminPusat) ? (
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => setShowCategoryModal(true)}
@@ -181,6 +197,10 @@ export default function ProductsManagementPage() {
               <Plus className="w-4 h-4" />
               <span>Tambah Produk Baru</span>
             </button>
+          </div>
+        ) : (
+          <div className="px-3.5 py-2 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-2">
+            <span>Login sebagai <strong>Owner</strong> untuk menambah atau mengedit menu</span>
           </div>
         )}
       </div>

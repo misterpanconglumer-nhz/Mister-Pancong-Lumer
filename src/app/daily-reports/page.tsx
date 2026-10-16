@@ -323,13 +323,15 @@ export default function DailyReportsPage() {
               >
                 Kemarin
               </button>
-              <button
-                onClick={() => setFilterDate('')}
-                className="px-3 py-2 text-slate-500 hover:text-slate-800 text-xs font-bold"
-                title="Tampilkan Semua Tanggal"
-              >
-                Tampilkan Semua
-              </button>
+              {(isOwner || isAdminPusat) && (
+                <button
+                  onClick={() => setFilterDate('')}
+                  className="px-3 py-2 text-slate-500 hover:text-slate-800 text-xs font-bold"
+                  title="Tampilkan Semua Tanggal (Khusus Owner)"
+                >
+                  Tampilkan Semua
+                </button>
+              )}
             </>
           ) : (
             <div className="flex items-center gap-2">
