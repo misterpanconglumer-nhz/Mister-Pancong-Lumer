@@ -5,19 +5,34 @@ import { useAuth } from '@/context/AuthContext';
 import { Expense } from '@/types';
 import { DataService } from '@/lib/services/dataService';
 import { formatRupiah, formatDate } from '@/lib/utils/formatters';
-import { Wallet, Plus, Edit, Trash2, Tag, Store, Check, X } from 'lucide-react';
+import { Wallet, Plus, Edit, Trash2, Tag, Store, Check, X, Calendar, Filter, RotateCcw, Search } from 'lucide-react';
 
 export default function ExpensesPage() {
-  const { user, activeBranch, isOwner, isAdminPusat, isAdminCabang } = useAuth();
+  const { user, activeBranch, branches, isOwner, isAdminPusat, isAdminCabang } = useAuth();
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showModal, setShowModal] = useState<boolean>(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
+  // Dates & Default Parameter
+  const todayStr = new Date().toISOString().split('T')[0];
+  const yesterdayObj = new Date();
+  yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+  const yesterdayStr = yesterdayObj.toISOString().split('T')[0];
+  const thisMonthStr = new Date().toISOString().slice(0, 7);
+
+  // Parameter Filter: Hari Ini (Default), Kemarin, Tanggal, Bulan, Cabang & Pencarian
+  const [filterMode, setFilterMode] = useState<'date' | 'month'>('date');
+  const [filterDate, setFilterDate] = useState<string>(todayStr); // DEFAULT HARI INI
+  const [filterMonth, setFilterMonth] = useState<string>(thisMonthStr);
+  const [filterBranchId, setFilterBranchId] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
   // Form states
   const [title, setTitle] = useState<string>('');
   const [amountInput, setAmountInput] = useState<string>('');
+  const [expenseDateInput, setExpenseDateInput] = useState<string>(todayStr);
   const [categoryName, setCategoryName] = useState<string>('Bahan Baku');
   const [paymentMethod, setPaymentMethod] = useState<'kas_cabang' | 'uang_pribadi'>('kas_cabang');
   const [notes, setNotes] = useState<string>('');
@@ -40,10 +55,28 @@ export default function ExpensesPage() {
     fetchExpenses();
   }, []);
 
+  const handleSetToday = () => {
+    setFilterMode('date');
+    setFilterDate(todayStr);
+  };
+
+  const handleSetYesterday = () => {
+    setFilterMode('date');
+    setFilterDate(yesterdayStr);
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setFilterBranchId('all');
+    setFilterMode('date');
+    setFilterDate(todayStr);
+  };
+
   const handleOpenAdd = () => {
     setEditingExpense(null);
     setTitle('');
     setAmountInput('');
+    setExpenseDateInput(filterDate || todayStr);
     setCategoryName('Bahan Baku');
     setPaymentMethod('kas_cabang');
     setNotes('');
@@ -55,6 +88,7 @@ export default function ExpensesPage() {
     setEditingExpense(exp);
     setTitle(exp.title);
     setAmountInput(String(exp.amount));
+    setExpenseDateInput(exp.expense_date ? exp.expense_date.split('T')[0] : todayStr);
     setCategoryName(exp.category_name || 'Bahan Baku');
     setPaymentMethod(exp.payment_method);
     setNotes(exp.notes || '');
@@ -95,7 +129,7 @@ export default function ExpensesPage() {
         status,
         created_by: editingExpense ? editingExpense.created_by : effectiveUserId,
         created_by_name: editingExpense ? editingExpense.created_by_name : effectiveUserName,
-        expense_date: editingExpense ? editingExpense.expense_date : new Date().toISOString().split('T')[0],
+        expense_date: expenseDateInput || (editingExpense ? editingExpense.expense_date : todayStr),
       });
 
       // Optimistic update
@@ -122,6 +156,53 @@ export default function ExpensesPage() {
     await fetchExpenses();
   };
 
+  // Filter calculations
+  const filteredExpenses = expenses.filter((e) => {
+    // 1. Branch filter
+    if (!isOwner && !isAdminPusat && activeBranch && e.branch_id !== activeBranch.id) {
+      return false;
+    }
+    if (filterBranchId !== 'all' && e.branch_id !== filterBranchId) {
+      return false;
+    }
+
+    // 2. Date / Month parameter filter
+    const expDate = e.expense_date ? e.expense_date.split('T')[0] : '';
+    if (filterMode === 'date') {
+      if (filterDate && expDate !== filterDate) {
+        return false;
+      }
+    } else {
+      if (filterMonth && !expDate.startsWith(filterMonth)) {
+        return false;
+      }
+    }
+
+    // 3. Search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchTitle = e.title.toLowerCase().includes(q);
+      const matchCat = e.category_name?.toLowerCase().includes(q);
+      const matchSubmitter = e.created_by_name?.toLowerCase().includes(q);
+      const matchNotes = e.notes?.toLowerCase().includes(q);
+      if (!matchTitle && !matchCat && !matchSubmitter && !matchNotes) return false;
+    }
+
+    return true;
+  });
+
+  const totalFilteredAmount = filteredExpenses
+    .filter((e) => e.status !== 'rejected')
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  const kasCabangTotal = filteredExpenses
+    .filter((e) => e.payment_method === 'kas_cabang' && e.status !== 'rejected')
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  const uangPribadiTotal = filteredExpenses
+    .filter((e) => e.payment_method === 'uang_pribadi' && e.status !== 'rejected')
+    .reduce((sum, e) => sum + e.amount, 0);
+
   return (
     <div className="space-y-4 pb-20 md:pb-6">
       
@@ -131,27 +212,214 @@ export default function ExpensesPage() {
           <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">Pengeluaran Operasional</h1>
           <p className="text-xs text-slate-500 mt-0.5">Catatan belanja bahan baku, kemasan & operasional cabang</p>
         </div>
-        <button
-          onClick={handleOpenAdd}
-          className="py-3 px-4 rounded-2xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-bold text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>Tambah Pengeluaran</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="px-3.5 py-2 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 font-extrabold text-xs flex items-center gap-1.5">
+            <Wallet className="w-4 h-4 text-rose-600" />
+            <span>Total: {formatRupiah(totalFilteredAmount)}</span>
+          </div>
+          <button
+            onClick={handleOpenAdd}
+            className="py-2.5 sm:py-3 px-4 rounded-2xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-bold text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>Tambah Pengeluaran</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Parameter Filter Bar: Hari Ini (Default), Kemarin, Tanggal, Bulan & Cabang */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-amber-900/10 shadow-xs space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          
+          {/* Mode Switcher: Filter Tanggal vs Filter Bulan */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => {
+                setFilterMode('date');
+                if (!filterDate) setFilterDate(todayStr);
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                filterMode === 'date'
+                  ? 'bg-white text-[#3d1e0f] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              📅 Filter Tanggal
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterMode('month')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                filterMode === 'month'
+                  ? 'bg-white text-[#3d1e0f] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              🗓️ Filter Bulan
+            </button>
+          </div>
+
+          {/* Branch Picker (Owner & Admin) */}
+          {(isOwner || isAdminPusat) && (
+            <div className="w-full sm:w-56">
+              <select
+                value={filterBranchId}
+                onChange={(e) => setFilterBranchId(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+              >
+                <option value="all">Semua Cabang</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    Cabang {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* Date Inputs & Quick Preset Buttons */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-slate-100 items-center">
+          
+          {/* Search Box */}
+          <div className="relative md:col-span-4">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari nama pengeluaran, kategori..."
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+            />
+          </div>
+
+          {/* Parameter Date Controls */}
+          <div className="md:col-span-8 flex flex-wrap items-center gap-2">
+            {filterMode === 'date' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleSetToday}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 active:scale-95 ${
+                    filterDate === todayStr
+                      ? 'bg-[#3d1e0f] text-amber-100 shadow-sm ring-2 ring-amber-400'
+                      : 'bg-amber-100 hover:bg-amber-200 text-[#3d1e0f]'
+                  }`}
+                  title="Tampilkan Pengeluaran Hari Ini (Default)"
+                >
+                  <span>Hari Ini</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSetYesterday}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 active:scale-95 ${
+                    filterDate === yesterdayStr
+                      ? 'bg-[#3d1e0f] text-amber-100 shadow-sm ring-2 ring-amber-400'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                  title="Tampilkan Pengeluaran Kemarin"
+                >
+                  <span>Kemarin</span>
+                </button>
+                <div className="relative min-w-[140px] flex-1 sm:flex-initial">
+                  <Calendar className="w-4 h-4 text-amber-600 absolute left-3 top-2.5" />
+                  <input
+                    type="date"
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className={`w-full pl-9 pr-3 py-2 bg-slate-50 border rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f] ${
+                      filterDate && filterDate !== todayStr && filterDate !== yesterdayStr
+                        ? 'border-amber-500 ring-2 ring-amber-400 bg-amber-50/50'
+                        : 'border-slate-200'
+                    }`}
+                  />
+                </div>
+                {(isOwner || isAdminPusat) && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterDate('')}
+                    className="px-2.5 py-2 text-slate-500 hover:text-slate-800 text-xs font-bold"
+                    title="Tampilkan Semua Pengeluaran Tanpa Filter Tanggal"
+                  >
+                    Tampilkan Semua
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                <span className="text-xs font-bold text-slate-700">Pilih Bulan:</span>
+                <input
+                  type="month"
+                  value={filterMonth}
+                  onChange={(e) => setFilterMonth(e.target.value)}
+                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Breakdown Tag / Status Bar */}
+        <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2 text-slate-600">
+            <span className="font-bold">
+              Periode:{' '}
+              <strong className="text-slate-900">
+                {filterMode === 'date'
+                  ? filterDate === todayStr
+                    ? 'Hari Ini'
+                    : filterDate === yesterdayStr
+                    ? 'Kemarin'
+                    : filterDate
+                    ? formatDate(filterDate)
+                    : 'Semua Tanggal'
+                  : `Bulan ${filterMonth}`}
+              </strong>
+            </span>
+            <span>•</span>
+            <span className="font-semibold">{filteredExpenses.length} Transaksi</span>
+            <span>•</span>
+            <span className="text-emerald-700 font-semibold">Kas Cabang: {formatRupiah(kasCabangTotal)}</span>
+            {uangPribadiTotal > 0 && (
+              <>
+                <span>•</span>
+                <span className="text-blue-700 font-semibold">Uang Pribadi: {formatRupiah(uangPribadiTotal)}</span>
+              </>
+            )}
+          </div>
+
+          {(filterDate !== todayStr || filterBranchId !== 'all' || searchQuery || filterMode !== 'date') && (
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="text-xs text-rose-600 hover:underline font-bold flex items-center gap-1"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset ke Hari Ini</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* List Expenses */}
       <div className="bg-white rounded-2xl sm:rounded-3xl border border-amber-900/10 shadow-xs overflow-hidden">
         {loading ? (
           <div className="py-12 text-center text-slate-400 text-xs font-semibold">Memuat pengeluaran...</div>
-        ) : expenses.length === 0 ? (
+        ) : filteredExpenses.length === 0 ? (
           <div className="py-12 text-center space-y-2">
             <Wallet className="w-10 h-10 text-slate-300 mx-auto" />
-            <p className="text-xs font-bold text-slate-700">Belum Ada Pengeluaran</p>
+            <p className="text-xs font-bold text-slate-700">
+              Belum Ada Pengeluaran Pada {filterMode === 'date' ? (filterDate === todayStr ? 'Hari Ini' : filterDate === yesterdayStr ? 'Kemarin' : filterDate ? formatDate(filterDate) : 'Periode Ini') : `Bulan ${filterMonth}`}
+            </p>
+            <p className="text-[11px] text-slate-400">
+              Gunakan tombol "+ Tambah Pengeluaran" di atas untuk mencatat pengeluaran baru.
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {expenses.map((exp) => (
+            {filteredExpenses.map((exp) => (
               <div
                 key={exp.id}
                 className="p-3.5 sm:p-4 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
@@ -279,20 +547,31 @@ export default function ExpensesPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Kategori</label>
-                  <select
-                    value={categoryName}
-                    onChange={(e) => setCategoryName(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-xs font-bold text-slate-800"
-                  >
-                    <option value="Bahan Baku">Bahan Baku</option>
-                    <option value="Kemasan">Kemasan</option>
-                    <option value="Es & Bahan Tambahan">Es & Bahan Tambahan</option>
-                    <option value="Transportasi Operasional">Transportasi Operasional</option>
-                    <option value="Perlengkapan">Perlengkapan</option>
-                    <option value="Lain-lain">Lain-lain</option>
-                  </select>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Tanggal Pengeluaran</label>
+                  <input
+                    type="date"
+                    required
+                    value={expenseDateInput}
+                    onChange={(e) => setExpenseDateInput(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[#3d1e0f] focus:outline-none"
+                  />
                 </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Kategori</label>
+                <select
+                  value={categoryName}
+                  onChange={(e) => setCategoryName(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-xs font-bold text-slate-800"
+                >
+                  <option value="Bahan Baku">Bahan Baku</option>
+                  <option value="Kemasan">Kemasan</option>
+                  <option value="Es & Bahan Tambahan">Es & Bahan Tambahan</option>
+                  <option value="Transportasi Operasional">Transportasi Operasional</option>
+                  <option value="Perlengkapan">Perlengkapan</option>
+                  <option value="Lain-lain">Lain-lain</option>
+                </select>
               </div>
 
               <div>
