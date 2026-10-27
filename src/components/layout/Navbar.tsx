@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
-import { Store, ChevronDown, LogOut, Settings, Calculator, LayoutDashboard, UtensilsCrossed, Users, Banknote, ClipboardList, ShoppingCart, FileSpreadsheet } from 'lucide-react';
+import { Store, ChevronDown, LogOut, Settings, Calculator, LayoutDashboard, UtensilsCrossed, Users, Banknote, ClipboardList, ShoppingCart, FileSpreadsheet, AlertTriangle, ExternalLink } from 'lucide-react';
 import CalculatorModal from '@/components/common/CalculatorModal';
+import { testSupabaseConnection } from '@/lib/supabase/client';
 
 export const Navbar: React.FC = () => {
   const { user, activeBranch, branches, setActiveBranch, isOwner, isAdminPusat, logout } = useAuth();
@@ -13,6 +14,27 @@ export const Navbar: React.FC = () => {
   const [showBranchMenu, setShowBranchMenu] = useState(false);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showCalc, setShowCalc] = useState(false);
+  const [isDbPaused, setIsDbPaused] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const checkDb = async () => {
+      try {
+        const res = await testSupabaseConnection();
+        if (isMounted) {
+          setIsDbPaused(!res.success);
+        }
+      } catch {
+        if (isMounted) {
+          setIsDbPaused(true);
+        }
+      }
+    };
+    checkDb();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <>
@@ -214,6 +236,27 @@ export const Navbar: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* Banner Peringatan Database Terjeda (Paused) */}
+      {isDbPaused && (
+        <div className="bg-amber-500 text-[#3d1e0f] px-4 py-2.5 text-xs font-bold flex flex-wrap items-center justify-between gap-2 border-b border-amber-600 shadow-sm animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-950 shrink-0 animate-bounce" />
+            <span>
+              <strong>Pemberitahuan Database Cloud (Supabase):</strong> Proyek database Supabase Anda sedang dalam mode jeda otomatis (Paused). Data Anda <strong>tetap aman dan tidak hilang</strong>. Silakan klik tombol di samping untuk mengaktifkan kembali database Anda.
+            </span>
+          </div>
+          <a
+            href="https://supabase.com/dashboard/project/urjakwhbkwsimtzdftpb"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 bg-[#3d1e0f] text-amber-100 rounded-xl font-extrabold text-[11px] hover:bg-black active:scale-95 transition-all flex items-center gap-1.5 shrink-0 shadow-xs"
+          >
+            <span>Buka Supabase &amp; Restore</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+      )}
 
       {/* Calculator Modal */}
       {showCalc && <CalculatorModal onClose={() => setShowCalc(false)} />}

@@ -214,9 +214,20 @@ export default function SettingsPage() {
               {cloudMessage}
             </p>
             {cloudStatus !== 'connected' && (
-              <p className="text-[11px] font-bold text-amber-800 mt-1">
-                ⚠️ Penyebab data berbeda di PC dan HP: Karena Supabase belum terhubung, data saat ini hanya tersimpan di memori browser PC ini (LocalStorage). Begitu Supabase terhubung, semua device akan 100% tersinkronkan.
-              </p>
+              <div className="mt-2 pt-2 border-t border-amber-200/60 space-y-2">
+                <p className="text-[11px] font-bold text-amber-900 leading-relaxed">
+                  ⚠️ <strong>Penyebab Umum:</strong> Jika menggunakan paket gratis (Free Tier), Supabase otomatis menjeda (<strong>Pause</strong>) proyek setelah 7 hari tidak ada traffic. Data Anda <strong>tetap aman dan tidak hilang</strong> di Supabase.
+                </p>
+                <a
+                  href="https://supabase.com/dashboard/project/urjakwhbkwsimtzdftpb"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#3d1e0f] text-amber-100 rounded-xl font-bold text-[11px] hover:bg-black transition-all shadow-xs"
+                >
+                  <span>Buka Supabase &amp; Klik &quot;Restore project&quot;</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
             )}
           </div>
         </div>

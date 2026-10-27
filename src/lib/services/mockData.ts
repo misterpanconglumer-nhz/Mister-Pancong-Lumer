@@ -103,7 +103,6 @@ export const MOCK_EMPLOYEE_ASSIGNMENTS = [
 export const MOCK_CATEGORIES: Category[] = [
   { id: 'cat-1', name: 'Coklat Lumer', slug: 'coklat-lumer', sort_order: 1 },
   { id: 'cat-2', name: 'Varian Crunch', slug: 'varian-crunch', sort_order: 2 },
-  { id: 'cat-3', name: 'Minuman Segar', slug: 'minuman-segar', sort_order: 3 },
 ];
 
 const standardPancongVariants = (_productId: string) => [];
@@ -287,30 +286,6 @@ export const MOCK_PRODUCTS: Product[] = [
     base_price: 20000,
     is_active: true,
     variants: standardPancongVariants('prod-cr-6'),
-  },
-
-  // 3. Kategori Minuman Segar
-  {
-    id: 'prod-dr-1',
-    category_id: 'cat-3',
-    category_name: 'Minuman Segar',
-    name: 'Es Teh Manis Segar',
-    description: 'Es teh melati segar manis pas penyegar setelah menikmati pancong lumer.',
-    image_url: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=500&q=80',
-    base_price: 5000,
-    is_active: true,
-    variants: [],
-  },
-  {
-    id: 'prod-dr-2',
-    category_id: 'cat-3',
-    category_name: 'Minuman Segar',
-    name: 'Air Mineral Dingin',
-    description: 'Air mineral botol dingin menyegarkan.',
-    image_url: 'https://images.unsplash.com/photo-1559839914-ba2ae140c6b7?auto=format&fit=crop&w=500&q=80',
-    base_price: 4000,
-    is_active: true,
-    variants: [],
   },
 ];
 

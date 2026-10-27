@@ -5,7 +5,8 @@ import { useAuth } from '@/context/AuthContext';
 import { Product, Category, ProductVariant } from '@/types';
 import { DataService } from '@/lib/services/dataService';
 import { formatRupiah } from '@/lib/utils/formatters';
-import { UtensilsCrossed, Plus, Edit, Trash2, Tag, Layers, Check } from 'lucide-react';
+import { UtensilsCrossed, Plus, Edit, Trash2, Tag, Layers, Check, AlertTriangle, ExternalLink } from 'lucide-react';
+import { testSupabaseConnection } from '@/lib/supabase/client';
 
 export default function ProductsManagementPage() {
   const { isOwner, isAdminPusat } = useAuth();
@@ -32,21 +33,25 @@ export default function ProductsManagementPage() {
   // Form states for Category
   const [newCategoryName, setNewCategoryName] = useState<string>('');
   const [isSubmittingCategory, setIsSubmittingCategory] = useState<boolean>(false);
+  const [isDbPaused, setIsDbPaused] = useState<boolean>(false);
 
   const fetchCatalog = async () => {
     setLoading(true);
     try {
-      const [pList, cList] = await Promise.all([
+      const [pList, cList, conn] = await Promise.all([
         DataService.getProducts(),
         DataService.getCategories(),
+        testSupabaseConnection(),
       ]);
       setProducts(pList);
       setCategories(cList);
+      setIsDbPaused(!conn.success);
       if (cList.length > 0 && !categoryId) {
         setCategoryId(cList[0].id);
       }
     } catch (err) {
       console.error('Error fetching catalog:', err);
+      setIsDbPaused(true);
     } finally {
       setLoading(false);
     }
@@ -204,6 +209,36 @@ export default function ProductsManagementPage() {
           </div>
         )}
       </div>
+
+      {/* Banner Notifikasi Database Cloud Terjeda */}
+      {isDbPaused && (
+        <div className="bg-amber-500/15 border border-amber-400 rounded-3xl p-4 sm:p-5 text-amber-950 text-xs space-y-2.5 shadow-xs animate-in fade-in">
+          <div className="flex items-center gap-2 font-black text-sm text-amber-950">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+            <span>Database Cloud (Supabase) Sedang Terjeda (Paused Otomatis)</span>
+          </div>
+          <p className="leading-relaxed text-slate-700">
+            Daftar menu yang terlihat saat ini adalah <strong>data cadangan lokal</strong>. Seluruh data menu asli Anda (yang sudah Anda tambah foto, revisi harga, dan hapus menu teh) <strong>tersimpan dengan aman</strong> di server Supabase.
+          </p>
+          <div className="pt-1 flex flex-wrap items-center gap-2">
+            <a
+              href="https://supabase.com/dashboard/project/urjakwhbkwsimtzdftpb"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#3d1e0f] text-amber-100 rounded-xl font-bold text-xs hover:bg-black active:scale-95 transition-all shadow-sm"
+            >
+              <span>Buka Supabase &amp; Klik &quot;Restore project&quot;</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+            <button
+              onClick={fetchCatalog}
+              className="px-3.5 py-2 bg-white border border-amber-300 text-amber-900 rounded-xl font-bold text-xs hover:bg-amber-50 active:scale-95 transition-all"
+            >
+              Cek Ulang Koneksi
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Category Filter Chips */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">

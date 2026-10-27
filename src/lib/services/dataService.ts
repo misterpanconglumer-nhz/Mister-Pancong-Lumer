@@ -267,9 +267,16 @@ export const DataService = {
   // 4. CATEGORIES & PRODUCTS
   async getCategories(): Promise<Category[]> {
     if (isSupabaseConfigured()) {
-      const supabase = createClient();
-      const { data, error } = await supabase.from('categories').select('*').order('sort_order', { ascending: true });
-      if (!error && data && data.length > 0) return data;
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase.from('categories').select('*').order('sort_order', { ascending: true });
+        if (!error && data && data.length > 0) {
+          setLocalItem('categories', data);
+          return data;
+        }
+      } catch (err) {
+        console.warn('Supabase getCategories failed:', err);
+      }
     }
     const local = getLocalItem<Category[]>('categories', MOCK_CATEGORIES);
     if (!local || local.length === 0) {
@@ -333,13 +340,19 @@ export const DataService = {
 
   async getProducts(): Promise<Product[]> {
     if (isSupabaseConfigured()) {
-      const supabase = createClient();
-      const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: true });
-      if (!error && data && data.length > 0) {
-        return data.map((p: any) => ({
-          ...p,
-          variants: [],
-        }));
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: true });
+        if (!error && data && data.length > 0) {
+          const mapped = data.map((p: any) => ({
+            ...p,
+            variants: [],
+          }));
+          setLocalItem('products', mapped);
+          return mapped;
+        }
+      } catch (err) {
+        console.warn('Supabase getProducts failed:', err);
       }
     }
     const local = getLocalItem<Product[]>('products', MOCK_PRODUCTS);
