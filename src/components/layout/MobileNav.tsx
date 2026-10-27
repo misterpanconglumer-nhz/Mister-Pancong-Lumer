@@ -53,6 +53,11 @@ export const MobileNav: React.FC = () => {
       icon: Receipt,
     },
     {
+      label: 'Laporan',
+      href: '/daily-reports',
+      icon: ClipboardList,
+    },
+    {
       label: 'Pengeluaran',
       href: '/expenses',
       icon: Wallet,
@@ -62,7 +67,6 @@ export const MobileNav: React.FC = () => {
       href: '/attendance',
       icon: CalendarCheck,
     },
-    ...(!isPenjual ? [{ label: 'Laporan', href: '/daily-reports', icon: ClipboardList }] : []),
   ];
 
   return (

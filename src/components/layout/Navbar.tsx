@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
-import { Store, ChevronDown, LogOut, Settings, Calculator, LayoutDashboard, UtensilsCrossed, Users, Banknote, ClipboardList, ShoppingCart, FileSpreadsheet, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Store, ChevronDown, LogOut, Settings, Calculator, LayoutDashboard, UtensilsCrossed, Users, Banknote, ClipboardList, ShoppingCart, FileSpreadsheet, AlertTriangle, ExternalLink, Receipt, Wallet, CalendarCheck } from 'lucide-react';
 import CalculatorModal from '@/components/common/CalculatorModal';
 import { testSupabaseConnection } from '@/lib/supabase/client';
 
@@ -145,7 +145,7 @@ export const Navbar: React.FC = () => {
                       </span>
                     </div>
 
-                    {(isOwner || isAdminPusat) && (
+                    {(isOwner || isAdminPusat) ? (
                       <div className="py-1 border-b border-slate-100 divide-y divide-slate-50">
                         <Link
                           href="/dashboard"
@@ -215,6 +215,49 @@ export const Navbar: React.FC = () => {
                             <span>Pengaturan Brand & Cloud</span>
                           </Link>
                         )}
+                      </div>
+                    ) : (
+                      <div className="py-1 border-b border-slate-100 divide-y divide-slate-50">
+                        <Link
+                          href="/daily-reports"
+                          onClick={() => setShowRoleMenu(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-800 hover:bg-amber-50 hover:text-[#3d1e0f] font-bold"
+                        >
+                          <ClipboardList className="w-4 h-4 text-blue-600" />
+                          <span>Laporan Shift Saya</span>
+                        </Link>
+                        <Link
+                          href="/pos"
+                          onClick={() => setShowRoleMenu(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-800 hover:bg-amber-50 hover:text-[#3d1e0f] font-semibold"
+                        >
+                          <ShoppingCart className="w-4 h-4 text-amber-700" />
+                          <span>Buka Kasir POS</span>
+                        </Link>
+                        <Link
+                          href="/sales"
+                          onClick={() => setShowRoleMenu(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-800 hover:bg-amber-50 hover:text-[#3d1e0f] font-semibold"
+                        >
+                          <Receipt className="w-4 h-4 text-emerald-600" />
+                          <span>Riwayat Transaksi</span>
+                        </Link>
+                        <Link
+                          href="/expenses"
+                          onClick={() => setShowRoleMenu(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-800 hover:bg-amber-50 hover:text-[#3d1e0f] font-semibold"
+                        >
+                          <Wallet className="w-4 h-4 text-amber-600" />
+                          <span>Catat Pengeluaran</span>
+                        </Link>
+                        <Link
+                          href="/attendance"
+                          onClick={() => setShowRoleMenu(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-800 hover:bg-amber-50 hover:text-[#3d1e0f] font-semibold"
+                        >
+                          <CalendarCheck className="w-4 h-4 text-purple-600" />
+                          <span>Absensi Karyawan</span>
+                        </Link>
                       </div>
                     )}
 

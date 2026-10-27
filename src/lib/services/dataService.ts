@@ -464,17 +464,28 @@ export const DataService = {
       if (branchId) query = query.eq('branch_id', branchId);
       const { data, error } = await query;
       if (!error && data) {
+        const [bList, uList] = await Promise.all([this.getBranches(), this.getUsers()]);
+        const bMap = new Map(bList.map((b) => [b.id, b.name]));
+        const uMap = new Map(uList.map((u) => [u.id, u.full_name]));
         return data.map((s: any) => ({
           ...s,
+          branch_name: s.branch_name || bMap.get(s.branch_id) || 'Cabang',
+          seller_name: s.seller_name || uMap.get(s.seller_id) || 'Kasir',
           items: s.sale_items || [],
         }));
       }
     }
     const sales = getLocalItem<SaleTransaction[]>('sales', MOCK_SALES);
+    const uList = await this.getUsers();
+    const uMap = new Map(uList.map((u) => [u.id, u.full_name]));
+    const mappedSales = sales.map((s) => ({
+      ...s,
+      seller_name: s.seller_name || uMap.get(s.seller_id) || 'Kasir',
+    }));
     if (branchId) {
-      return sales.filter((s) => s.branch_id === branchId);
+      return mappedSales.filter((s) => s.branch_id === branchId);
     }
-    return sales;
+    return mappedSales;
   },
 
   async createTransaction(transaction: Omit<SaleTransaction, 'id' | 'created_at'>): Promise<SaleTransaction> {
