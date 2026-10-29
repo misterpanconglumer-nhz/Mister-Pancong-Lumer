@@ -658,7 +658,7 @@ export default function PayrollPage() {
   };
 
   // ==========================================
-  // FITUR 1 TOMBOL COPY GAMBAR SLIP GAJI KE CLIPBOARD (UNTUK WHATSAPP)
+  // FITUR 1 TOMBOL COPY GAMBAR SLIP GAJI KE CLIPBOARD (FULL CARD UNTUK WHATSAPP)
   // ==========================================
   const handleCopySlipImage = async () => {
     const node = document.getElementById('receipt-print-area');
@@ -669,11 +669,24 @@ export default function PayrollPage() {
 
     setIsCopyingImage(true);
     try {
-      // 1. Render element into PNG blob with 2x pixel ratio for crystal clear text
+      // Pastikan dimensi penuh kartu slip terbaca 100% tanpa terpotong
+      const actualWidth = node.offsetWidth || node.scrollWidth || 460;
+      const actualHeight = node.scrollHeight || node.offsetHeight;
+
+      // Render seluruh card dokumen slip ke dalam file PNG resolusi tinggi
       const blob = await toBlob(node, {
         quality: 0.98,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
+        width: actualWidth,
+        height: actualHeight,
+        style: {
+          transform: 'none',
+          maxHeight: 'none',
+          height: `${actualHeight}px`,
+          overflow: 'visible',
+          margin: '0',
+        },
         cacheBust: true,
       });
 
@@ -681,7 +694,7 @@ export default function PayrollPage() {
 
       let copiedToClipboard = false;
 
-      // 2. Direct Clipboard Item writing (works on Chrome, Edge, Safari desktop & WA Web)
+      // Direct Clipboard Item writing (works on Chrome, Edge, Safari desktop & WA Web)
       if (typeof navigator !== 'undefined' && navigator.clipboard && typeof ClipboardItem !== 'undefined') {
         try {
           const item = new ClipboardItem({ 'image/png': blob });
@@ -694,18 +707,31 @@ export default function PayrollPage() {
 
       if (copiedToClipboard) {
         setCopyImageSuccess(true);
-        setSaveSuccessMsg('✓ Gambar slip gaji tersalin ke Clipboard! Silakan buka WhatsApp dan tekan Ctrl+V (Tempel).');
+        setSaveSuccessMsg('✓ Full card slip gaji berhasil disalin! Silakan langsung paste (Ctrl+V) di WhatsApp.');
         setTimeout(() => setCopyImageSuccess(false), 4500);
         setTimeout(() => setSaveSuccessMsg(null), 4500);
       } else {
         // Fallback: download PNG image automatically if clipboard writing is blocked by browser permissions
-        const dataUrl = await toPng(node, { quality: 0.98, pixelRatio: 2, backgroundColor: '#ffffff' });
+        const dataUrl = await toPng(node, {
+          quality: 0.98,
+          pixelRatio: 2,
+          backgroundColor: '#ffffff',
+          width: actualWidth,
+          height: actualHeight,
+          style: {
+            transform: 'none',
+            maxHeight: 'none',
+            height: `${actualHeight}px`,
+            overflow: 'visible',
+            margin: '0',
+          },
+        });
         const link = document.createElement('a');
         const cleanName = (selectedPayroll?.user_name || 'karyawan').replace(/[^a-zA-Z0-9]/g, '_');
         link.download = `Slip_Gaji_${cleanName}_${selectedMonth}.png`;
         link.href = dataUrl;
         link.click();
-        setSaveSuccessMsg('✓ Gambar slip gaji otomatis diunduh! Anda bisa langsung melampirkannya di WhatsApp.');
+        setSaveSuccessMsg('✓ Full card slip gaji otomatis diunduh! Anda bisa langsung melampirkannya di WhatsApp.');
         setTimeout(() => setSaveSuccessMsg(null), 4500);
       }
     } catch (err: any) {
@@ -2172,7 +2198,7 @@ export default function PayrollPage() {
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 max-h-[95vh] flex flex-col">
             
             {/* Modal Top Control Bar (Hidden when printing) */}
-            <div className="p-3.5 bg-[#3d1e0f] text-white flex items-center justify-between print:hidden">
+            <div className="p-3.5 bg-[#3d1e0f] text-white flex items-center justify-between print:hidden shrink-0">
               <div className="flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-amber-400" />
                 <span className="font-extrabold text-xs tracking-wider uppercase text-amber-300">
@@ -2187,8 +2213,15 @@ export default function PayrollPage() {
               </button>
             </div>
 
-            {/* Slip Gaji Content (Formatted for Screen & Printable PDF Document) */}
-            <div id="receipt-print-area" className="p-5 sm:p-8 bg-white text-slate-800 space-y-4 sm:space-y-5 overflow-y-auto">
+            {/* Scrollable Container Wrapper (Memungkinkan scroll di layar HP/laptop tanpa memotong kartu slip) */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-5 bg-slate-100/70 flex justify-center">
+              
+              {/* FULL CARD SLIP (Tinggi natural tidak dibatasi agar gambar tersalin 100% utuh sampai tanda tangan) */}
+              <div
+                id="receipt-print-area"
+                className="w-full max-w-md bg-white rounded-3xl shadow-md border border-slate-200/90 p-5 sm:p-8 text-slate-800 space-y-4 sm:space-y-5 h-fit"
+                style={{ overflow: 'visible' }}
+              >
               
               {/* Header Company & Logo */}
               <div className="flex items-center justify-between border-b-2 border-[#3d1e0f] pb-3 sm:pb-4">
@@ -2412,9 +2445,10 @@ export default function PayrollPage() {
               </div>
 
             </div>
+          </div>
 
-            {/* Action Control Buttons (HANYA 1 TOMBOL COPY GAMBAR SLIP UNTUK WA) */}
-            <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center gap-2.5 print:hidden">
+          {/* Action Control Buttons (HANYA 1 TOMBOL COPY GAMBAR SLIP UNTUK WA) */}
+          <div className="p-3.5 sm:p-4 bg-white border-t border-slate-200 flex flex-col sm:flex-row items-center gap-2.5 print:hidden shrink-0">
               
               {/* HANYA 1 TOMBOL COPY GAMBAR SLIP */}
               <button
