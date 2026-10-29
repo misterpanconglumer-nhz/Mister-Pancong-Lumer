@@ -1075,6 +1075,20 @@ export const DataService = {
     return updated;
   },
 
+  async deletePayrollItem(itemId: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = createClient();
+        await supabase.from('payroll_items').delete().eq('id', itemId);
+      } catch (e) {
+        console.warn('Supabase delete payroll item error:', e);
+      }
+    }
+    const list = getLocalItem<PayrollItem[]>('payroll_items', MOCK_PAYROLL_ITEMS);
+    const filtered = list.filter((i) => i.id !== itemId);
+    setLocalItem('payroll_items', filtered);
+  },
+
   // 10. AUDIT LOGS
   async logAudit(log: Omit<AuditLog, 'id' | 'created_at'>): Promise<void> {
     const list = getLocalItem<AuditLog[]>('audit_logs', MOCK_AUDIT_LOGS);

@@ -1,15 +1,54 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { PayrollItem, PayrollSetting, UserProfile, CustomPayrollComponent } from '@/types';
 import { DataService } from '@/lib/services/dataService';
 import { formatRupiah, formatDate } from '@/lib/utils/formatters';
-import { Banknote, Settings, Lock, CheckCircle2, Eye, Plus, Trash2, Printer, Calendar, FileText, Download, Building2, User, Award, ShieldCheck, X } from 'lucide-react';
+import {
+  Banknote,
+  Settings,
+  Lock,
+  CheckCircle2,
+  Eye,
+  Plus,
+  Trash2,
+  Printer,
+  Calendar,
+  FileText,
+  Download,
+  Building2,
+  User,
+  Award,
+  ShieldCheck,
+  X,
+  Calculator,
+  Clock,
+  Check,
+  Sparkles,
+  Receipt,
+  Store,
+} from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 
+interface ManualBonusItem {
+  id: string;
+  name: string;
+  mode: 'fixed' | 'multiplier';
+  rate: number;
+  qty: number;
+  unit: string;
+  total: number;
+}
+
+interface ManualDeductionItem {
+  id: string;
+  name: string;
+  amount: number;
+}
+
 export default function PayrollPage() {
-  const { user, isOwner, isAdminPusat } = useAuth();
+  const { user, isOwner, isAdminPusat, branches, activeBranch } = useAuth();
   const { settings } = useApp();
 
   const [payrollItems, setPayrollItems] = useState<PayrollItem[]>([]);
@@ -18,10 +57,12 @@ export default function PayrollPage() {
   const [loading, setLoading] = useState<boolean>(true);
 
   // Filters
-  const [selectedMonth, setSelectedMonth] = useState<string>('2026-10');
+  const [selectedMonth, setSelectedMonth] = useState<string>(
+    new Date().toISOString().slice(0, 7)
+  );
   const [filterBranchId, setFilterBranchId] = useState<string>('all');
 
-  // Selected item modal state
+  // Selected item modal state for pay slip preview
   const [selectedPayroll, setSelectedPayroll] = useState<PayrollItem | null>(null);
   const [editingSettingUser, setEditingSettingUser] = useState<PayrollSetting | null>(null);
 
@@ -40,6 +81,49 @@ export default function PayrollPage() {
     { id: 'cc-1', name: 'Uang Seragam Baju', amount: 100000, type: 'bonus' },
   ]);
 
+  // ==========================================
+  // STATE: PEMBUATAN SLIP GAJI MANUAL
+  // ==========================================
+  const [showManualSlipModal, setShowManualSlipModal] = useState<boolean>(false);
+  const [manualEmployeeType, setManualEmployeeType] = useState<'existing' | 'custom'>('existing');
+  const [manualEmployeeId, setManualEmployeeId] = useState<string>('');
+  const [manualEmployeeName, setManualEmployeeName] = useState<string>('');
+  const [manualBranchId, setManualBranchId] = useState<string>('');
+  const [manualBranchName, setManualBranchName] = useState<string>('');
+  const [manualPeriodLabel, setManualPeriodLabel] = useState<string>('');
+  const [manualDaysPresent, setManualDaysPresent] = useState<number>(24);
+
+  // Gaji Pokok
+  const [baseMode, setBaseMode] = useState<'fixed' | 'daily'>('fixed');
+  const [baseFixedAmount, setBaseFixedAmount] = useState<number>(1500000);
+  const [baseDailyRate, setBaseDailyRate] = useState<number>(60000);
+  const [baseDays, setBaseDays] = useState<number>(24);
+
+  // Uang Makan (Perkalian)
+  const [mealRate, setMealRate] = useState<number>(15000);
+  const [mealDays, setMealDays] = useState<number>(24);
+
+  // Uang Transport (Perkalian)
+  const [transportRate, setTransportRate] = useState<number>(15000);
+  const [transportDays, setTransportDays] = useState<number>(24);
+
+  // Lembur Mingguan / Jam (Perkalian)
+  const [enableOvertime, setEnableOvertime] = useState<boolean>(true);
+  const [overtimeTitle, setOvertimeTitle] = useState<string>('Lembur Mingguan');
+  const [overtimeRate, setOvertimeRate] = useState<number>(25000);
+  const [overtimeMultiplier, setOvertimeMultiplier] = useState<number>(4);
+  const [overtimeUnit, setOvertimeUnit] = useState<string>('minggu');
+
+  // Bonus Tambahan
+  const [manualBonuses, setManualBonuses] = useState<ManualBonusItem[]>([
+    { id: 'b-1', name: 'Bonus Target / Kerajinan', mode: 'fixed', rate: 100000, qty: 1, unit: 'kali', total: 100000 },
+  ]);
+
+  // Potongan (Kasbon / Izin)
+  const [manualDeductions, setManualDeductions] = useState<ManualDeductionItem[]>([]);
+  const [manualNotes, setManualNotes] = useState<string>('');
+  const [isSubmittingManual, setIsSubmittingManual] = useState<boolean>(false);
+
   const fetchPayrollData = async () => {
     setLoading(true);
     try {
@@ -50,7 +134,7 @@ export default function PayrollPage() {
       ]);
       setPayrollItems(items);
       setPayrollSettings(settingsList);
-      setEmployees(userList.filter((u) => u.role === 'penjual' || u.role === 'admin_cabang'));
+      setEmployees(userList.filter((u) => u.role === 'penjual' || u.role === 'admin_cabang' || u.role === 'owner'));
     } catch (err) {
       console.error('Error fetching payroll:', err);
     } finally {
@@ -61,6 +145,16 @@ export default function PayrollPage() {
   useEffect(() => {
     fetchPayrollData();
   }, []);
+
+  // Filtered Payroll Items
+  const filteredPayrollItems = useMemo(() => {
+    return payrollItems.filter((item) => {
+      if (filterBranchId !== 'all' && item.branch_id && item.branch_id !== filterBranchId) {
+        return false;
+      }
+      return true;
+    });
+  }, [payrollItems, filterBranchId]);
 
   if (!isOwner && !isAdminPusat) {
     return (
@@ -76,6 +170,9 @@ export default function PayrollPage() {
     );
   }
 
+  // ==========================================
+  // HANDLERS: PENGATURAN KOMPONEN GAJI DEFAULT
+  // ==========================================
   const handleOpenSettingModal = (emp: UserProfile) => {
     const existing = payrollSettings.find((s) => s.user_id === emp.id);
     if (existing) {
@@ -161,25 +258,325 @@ export default function PayrollPage() {
     await fetchPayrollData();
   };
 
+  const handleDeletePayroll = async (itemId: string, name?: string) => {
+    if (window.confirm(`Hapus slip gaji untuk ${name || 'karyawan ini'}?`)) {
+      await DataService.deletePayrollItem(itemId);
+      setPayrollItems((prev) => prev.filter((i) => i.id !== itemId));
+    }
+  };
+
+  // ==========================================
+  // HANDLERS: PEMBUATAN SLIP GAJI MANUAL
+  // ==========================================
+  const handleOpenManualSlipModal = (prefillEmp?: UserProfile) => {
+    const targetEmp = prefillEmp || employees[0];
+    const initialDays = 24;
+
+    setManualEmployeeType('existing');
+    setManualEmployeeId(targetEmp?.id || 'emp-1');
+    setManualEmployeeName(targetEmp?.full_name || 'Karyawan');
+    setManualBranchId(activeBranch?.id || branches[0]?.id || 'd9ec11ac-c42f-4904-b932-20abbe83e89e');
+    setManualBranchName(activeBranch?.name || branches[0]?.name || 'Cidodol');
+    setManualPeriodLabel(`Periode ${selectedMonth}`);
+    setManualDaysPresent(initialDays);
+
+    // Look up existing payroll setting if available
+    const setting = targetEmp ? payrollSettings.find((s) => s.user_id === targetEmp.id) : null;
+
+    if (setting) {
+      if (setting.base_salary_type === 'per_day') {
+        setBaseMode('daily');
+        setBaseDailyRate(setting.base_salary || 60000);
+        setBaseDays(initialDays);
+        setBaseFixedAmount(setting.base_salary * initialDays);
+      } else {
+        setBaseMode('fixed');
+        setBaseFixedAmount(setting.base_salary || 1500000);
+        setBaseDailyRate(Math.round((setting.base_salary || 1500000) / initialDays));
+        setBaseDays(initialDays);
+      }
+
+      setMealRate(setting.meal_allowance || 15000);
+      setMealDays(initialDays);
+      setTransportRate(setting.transport_allowance || 15000);
+      setTransportDays(initialDays);
+
+      if (setting.custom_components && setting.custom_components.length > 0) {
+        setManualBonuses(
+          setting.custom_components.map((c, i) => ({
+            id: `b-${i}-${Date.now()}`,
+            name: c.name,
+            mode: 'fixed',
+            rate: c.amount,
+            qty: 1,
+            unit: 'kali',
+            total: c.amount,
+          }))
+        );
+      } else {
+        setManualBonuses([
+          { id: 'b-1', name: 'Bonus Target / Kerajinan', mode: 'fixed', rate: 100000, qty: 1, unit: 'kali', total: 100000 },
+        ]);
+      }
+    } else {
+      setBaseMode('fixed');
+      setBaseFixedAmount(1500000);
+      setBaseDailyRate(60000);
+      setBaseDays(initialDays);
+      setMealRate(15000);
+      setMealDays(initialDays);
+      setTransportRate(15000);
+      setTransportDays(initialDays);
+      setManualBonuses([
+        { id: 'b-1', name: 'Bonus Target / Kerajinan', mode: 'fixed', rate: 100000, qty: 1, unit: 'kali', total: 100000 },
+      ]);
+    }
+
+    setEnableOvertime(true);
+    setOvertimeTitle('Lembur Mingguan');
+    setOvertimeRate(25000);
+    setOvertimeMultiplier(4);
+    setOvertimeUnit('minggu');
+    setManualDeductions([]);
+    setManualNotes('');
+    setShowManualSlipModal(true);
+  };
+
+  const handleSelectEmployeeForManual = (empId: string) => {
+    if (empId === 'custom') {
+      setManualEmployeeType('custom');
+      setManualEmployeeId(`custom-${Date.now()}`);
+      setManualEmployeeName('');
+      return;
+    }
+
+    setManualEmployeeType('existing');
+    setManualEmployeeId(empId);
+    const emp = employees.find((e) => e.id === empId);
+    if (emp) {
+      setManualEmployeeName(emp.full_name);
+      const setting = payrollSettings.find((s) => s.user_id === emp.id);
+      if (setting) {
+        if (setting.base_salary_type === 'per_day') {
+          setBaseMode('daily');
+          setBaseDailyRate(setting.base_salary);
+          setBaseDays(manualDaysPresent);
+        } else {
+          setBaseMode('fixed');
+          setBaseFixedAmount(setting.base_salary);
+        }
+        if (setting.meal_allowance) setMealRate(setting.meal_allowance);
+        if (setting.transport_allowance) setTransportRate(setting.transport_allowance);
+      }
+    }
+  };
+
+  // Sync days present with meal & transport days
+  const handleSyncDays = (days: number) => {
+    setManualDaysPresent(days);
+    setMealDays(days);
+    setTransportDays(days);
+    if (baseMode === 'daily') {
+      setBaseDays(days);
+    }
+  };
+
+  // Live calculations for manual slip
+  const calcBaseTotal = baseMode === 'fixed' ? Number(baseFixedAmount) || 0 : (Number(baseDailyRate) || 0) * (Number(baseDays) || 0);
+  const calcMealTotal = (Number(mealRate) || 0) * (Number(mealDays) || 0);
+  const calcTransportTotal = (Number(transportRate) || 0) * (Number(transportDays) || 0);
+  const calcOvertimeTotal = enableOvertime ? (Number(overtimeRate) || 0) * (Number(overtimeMultiplier) || 0) : 0;
+  const calcBonusTotal = manualBonuses.reduce((sum, b) => sum + (Number(b.total) || 0), 0);
+  const calcGrossTotal = calcBaseTotal + calcMealTotal + calcTransportTotal + calcOvertimeTotal + calcBonusTotal;
+  const calcDeductionsTotal = manualDeductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+  const calcNetTotal = Math.max(0, calcGrossTotal - calcDeductionsTotal);
+
+  // Bonus items helpers
+  const handleAddManualBonus = () => {
+    setManualBonuses([
+      ...manualBonuses,
+      { id: `b-${Date.now()}`, name: 'Bonus Tambahan', mode: 'fixed', rate: 50000, qty: 1, unit: 'kali', total: 50000 },
+    ]);
+  };
+
+  const handleUpdateManualBonus = (index: number, updates: Partial<ManualBonusItem>) => {
+    const copy = [...manualBonuses];
+    const item = { ...copy[index], ...updates };
+    if (item.mode === 'multiplier') {
+      item.total = (Number(item.rate) || 0) * (Number(item.qty) || 0);
+    } else {
+      item.total = Number(item.rate) || 0;
+    }
+    copy[index] = item;
+    setManualBonuses(copy);
+  };
+
+  const handleRemoveManualBonus = (id: string) => {
+    setManualBonuses(manualBonuses.filter((b) => b.id !== id));
+  };
+
+  // Deduction helpers
+  const handleAddManualDeduction = () => {
+    setManualDeductions([
+      ...manualDeductions,
+      { id: `d-${Date.now()}`, name: 'Potongan Kasbon / Lainnya', amount: 50000 },
+    ]);
+  };
+
+  const handleUpdateManualDeduction = (index: number, updates: Partial<ManualDeductionItem>) => {
+    const copy = [...manualDeductions];
+    copy[index] = { ...copy[index], ...updates };
+    setManualDeductions(copy);
+  };
+
+  const handleRemoveManualDeduction = (id: string) => {
+    setManualDeductions(manualDeductions.filter((d) => d.id !== id));
+  };
+
+  // Submit and Save Manual Slip
+  const handleSubmitManualSlip = async (e: React.FormEvent, andOpenPreview: boolean = true) => {
+    e.preventDefault();
+    if (!manualEmployeeName.trim()) {
+      alert('Nama karyawan wajib diisi!');
+      return;
+    }
+
+    setIsSubmittingManual(true);
+    try {
+      const targetBranchObj = branches.find((b) => b.id === manualBranchId) || activeBranch;
+
+      const formattedCustomComponents: CustomPayrollComponent[] = [
+        ...(enableOvertime && calcOvertimeTotal > 0
+          ? [
+              {
+                id: `ot-${Date.now()}`,
+                name: `${overtimeTitle} (${formatRupiah(overtimeRate)} x ${overtimeMultiplier} ${overtimeUnit})`,
+                amount: calcOvertimeTotal,
+                type: 'bonus' as const,
+              },
+            ]
+          : []),
+        ...manualBonuses
+          .filter((b) => b.name.trim() !== '' && b.total > 0)
+          .map((b) => ({
+            id: b.id,
+            name:
+              b.mode === 'multiplier'
+                ? `${b.name} (${formatRupiah(b.rate)} x ${b.qty} ${b.unit})`
+                : b.name,
+            amount: b.total,
+            type: 'bonus' as const,
+          })),
+        ...manualDeductions
+          .filter((d) => d.name.trim() !== '' && d.amount > 0)
+          .map((d) => ({
+            id: d.id,
+            name: d.name,
+            amount: d.amount,
+            type: 'deduction' as const,
+          })),
+      ];
+
+      const newSlipPayload: Partial<PayrollItem> = {
+        id: `slip-${Date.now()}`,
+        payroll_period_id: `pp-${selectedMonth}`,
+        user_id: manualEmployeeId || `emp-${Date.now()}`,
+        user_name: manualEmployeeName.trim(),
+        branch_id: manualBranchId || targetBranchObj?.id,
+        branch_name: targetBranchObj?.name || manualBranchName || 'Cidodol',
+        days_present: manualDaysPresent,
+        base_salary_calculated: calcBaseTotal,
+        transport_calculated: calcTransportTotal,
+        meal_calculated: calcMealTotal,
+        bonus_amount: calcOvertimeTotal + calcBonusTotal,
+        sales_incentive_amount: 0,
+        total_deductions: calcDeductionsTotal,
+        net_salary: calcNetTotal,
+        status: 'approved',
+        custom_components: formattedCustomComponents,
+        snapshot_data: {
+          is_manual: true,
+          period_label: manualPeriodLabel || `Periode ${selectedMonth}`,
+          base_salary: {
+            mode: baseMode,
+            rate: baseDailyRate,
+            days: baseDays,
+            total: calcBaseTotal,
+          },
+          meal: {
+            rate: mealRate,
+            days: mealDays,
+            total: calcMealTotal,
+          },
+          transport: {
+            rate: transportRate,
+            days: transportDays,
+            total: calcTransportTotal,
+          },
+          overtime: enableOvertime
+            ? {
+                title: overtimeTitle,
+                rate: overtimeRate,
+                multiplier: overtimeMultiplier,
+                unit: overtimeUnit,
+                total: calcOvertimeTotal,
+              }
+            : null,
+          bonuses: manualBonuses,
+          deductions: manualDeductions,
+          notes: manualNotes,
+        },
+      };
+
+      const saved = await DataService.savePayrollItem(newSlipPayload);
+      setPayrollItems((prev) => [saved, ...prev.filter((i) => i.id !== saved.id)]);
+      setShowManualSlipModal(false);
+
+      if (andOpenPreview) {
+        setSelectedPayroll(saved);
+      } else {
+        alert('✓ Slip gaji manual berhasil disimpan!');
+      }
+    } catch (err: any) {
+      console.error('Failed to create manual payroll slip:', err);
+      alert('Gagal membuat slip gaji: ' + (err?.message || 'Terjadi kesalahan'));
+    } finally {
+      setIsSubmittingManual(false);
+    }
+  };
+
   const handlePrintPDF = () => {
     window.print();
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-16">
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm print:hidden">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Laporan & Rekap Penggajian</h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-brand-900 text-[10px] font-bold">Khusus Owner</span>
+            <span className="p-2 rounded-2xl bg-amber-100 text-[#3d1e0f]">
+              <Banknote className="w-5 h-5 stroke-[2.5]" />
+            </span>
+            <div>
+              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Laporan & Penggajian Karyawan</h1>
+              <p className="text-xs text-slate-500 mt-0.5">Pembuatan slip manual dengan perkalian (Makan, Transport, Lembur), cetak slip gaji & ekspor PDF</p>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">Pengaturan kompensasi, poin bonus/baju, cetak slip gaji resmi & ekspor PDF</p>
         </div>
 
-        {/* Filter Month & Export PDF button */}
-        <div className="flex items-center gap-2">
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Tombol Buat Slip Manual */}
+          <button
+            onClick={() => handleOpenManualSlipModal()}
+            className="py-2.5 px-4 rounded-2xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-extrabold text-xs shadow-md shadow-[#3d1e0f]/20 active:scale-95 transition-all flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>+ Buat Slip Gaji Manual</span>
+          </button>
+
           <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-2 rounded-2xl">
             <Calendar className="w-4 h-4 text-slate-400" />
             <input
@@ -192,20 +589,50 @@ export default function PayrollPage() {
 
           <button
             onClick={handlePrintPDF}
-            className="py-2.5 px-4 rounded-2xl bg-brand-800 hover:bg-brand-900 text-amber-100 font-bold text-xs shadow-md flex items-center gap-2 transition-colors"
+            className="py-2.5 px-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors"
           >
             <Printer className="w-4 h-4" />
-            <span>Export PDF Laporan</span>
+            <span>Export PDF</span>
           </button>
         </div>
       </div>
 
+      {/* Quick Access Card: Buat Slip Manual Interaktif Banner */}
+      <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100/60 p-5 rounded-3xl border border-amber-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
+        <div className="flex items-start gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-[#3d1e0f] text-amber-300 flex items-center justify-center shrink-0 shadow-md">
+            <Calculator className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+              <span>Pembuatan Slip Gaji Manual & Fleksibel</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500 text-slate-900 font-black uppercase tracking-wider">
+                Fitur Baru
+              </span>
+            </h3>
+            <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+              Buat slip gaji dengan masukan perkalian transparan: <strong>Makan (Rp 15.000 x 24 hari)</strong>, <strong>Transport (Rp 15.000 x 24 hari)</strong>, <strong>Lembur Mingguan (Rp 25.000 x 4 minggu)</strong>, dan bonus/potongan.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => handleOpenManualSlipModal()}
+          className="px-5 py-3 rounded-2xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-extrabold text-xs shadow-md whitespace-nowrap active:scale-95 transition-all flex items-center justify-center gap-2"
+        >
+          <Plus className="w-4 h-4 stroke-[3]" />
+          <span>Buka Form Slip Manual</span>
+        </button>
+      </div>
+
       {/* Section 1: Employee Salary Components Settings */}
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4 print:hidden">
-        <h2 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-          <Settings className="w-4 h-4 text-amber-600" />
-          <span>Pengaturan Komponen Gaji Karyawan (Transport Manual & Poin Bonus/Baju)</span>
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+            <Settings className="w-4 h-4 text-amber-600" />
+            <span>Pengaturan Tarif Standar Karyawan (Gaji Pokok, Transport, Makan & Poin)</span>
+          </h2>
+          <span className="text-xs text-slate-400">Diatur per karyawan</span>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {employees.map((emp) => {
@@ -218,67 +645,94 @@ export default function PayrollPage() {
                 <div>
                   <p className="text-xs font-bold text-slate-900">{emp.full_name}</p>
                   <p className="text-[11px] text-slate-500 font-medium capitalize">{emp.role.replace('_', ' ')}</p>
-                  <div className="flex flex-wrap gap-2 text-[10px] font-mono font-semibold text-brand-800 mt-1">
-                    <span>Gaji Pokok: {formatRupiah(setting?.base_salary || 0)}</span>
+                  <div className="flex flex-wrap gap-2 text-[10px] font-mono font-semibold text-slate-700 mt-1">
+                    <span>Pokok: {formatRupiah(setting?.base_salary || 0)}</span>
                     <span>Transport: {formatRupiah(setting?.transport_allowance || 0)}</span>
+                    <span>Makan: {formatRupiah(setting?.meal_allowance || 0)}</span>
                     {setting?.custom_components && setting.custom_components.length > 0 && (
                       <span className="text-emerald-700 font-bold">
-                        +{setting.custom_components.length} Poin Bonus/Baju
+                        +{setting.custom_components.length} Poin Bonus
                       </span>
                     )}
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleOpenSettingModal(emp)}
-                  className="px-3.5 py-2 rounded-xl bg-amber-500 text-brand-900 font-bold text-xs hover:bg-amber-600 transition-colors shadow-xs"
-                >
-                  Atur Gaji & Poin
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleOpenManualSlipModal(emp)}
+                    className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-black text-amber-300 font-bold text-xs transition-colors shadow-xs"
+                    title="Buat slip manual untuk karyawan ini"
+                  >
+                    + Buat Slip
+                  </button>
+                  <button
+                    onClick={() => handleOpenSettingModal(emp)}
+                    className="px-3 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs hover:bg-amber-600 transition-colors shadow-xs"
+                    title="Atur tarif dasar"
+                  >
+                    Atur
+                  </button>
+                </div>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Section 2: Printable Report Table */}
+      {/* Section 2: Daftar Slip Gaji & Rekapitulasi */}
       <div id="payroll-report-area" className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden p-6 space-y-4">
         
         {/* Printable Header */}
         <div className="border-b border-dashed border-slate-300 pb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500 p-1 shadow-md flex items-center justify-center font-bold text-brand-900 text-xl">
-              {settings.logo_url && !settings.logo_url.includes('placeholder') ? (
-                <img src={settings.logo_url} alt="Logo" className="w-full h-full object-cover rounded-xl" />
-              ) : (
-                <span>PL</span>
-              )}
+            <div className="w-12 h-12 rounded-2xl bg-black border border-amber-500/40 p-1 shadow-md flex items-center justify-center font-bold text-white text-xl overflow-hidden">
+              <img
+                src={settings.logo_url || '/logo.jpg'}
+                alt="Logo"
+                className="w-full h-full object-contain rounded-xl"
+                onError={(e) => {
+                  e.currentTarget.src = '/logo.jpg';
+                }}
+              />
             </div>
             <div>
               <h2 className="font-extrabold text-base text-slate-900 uppercase">{settings.app_name}</h2>
               <p className="text-xs text-slate-500">{settings.brand_owner}</p>
-              <p className="text-xs font-bold text-brand-900 mt-0.5">REKAPITULASI LAPORAN PENGGAJIAN KARYAWAN</p>
+              <p className="text-xs font-bold text-[#3d1e0f] mt-0.5">REKAPITULASI LAPORAN PENGGAJIAN KARYAWAN</p>
             </div>
           </div>
           <div className="text-right text-xs">
             <p className="font-bold text-slate-800">Periode: {selectedMonth}</p>
-            <p className="text-[10px] text-slate-400">Tanggal Cetak: {formatDate(new Date().toISOString())}</p>
+            <p className="text-[10px] text-slate-400">Total: {filteredPayrollItems.length} Slip Gaji</p>
           </div>
         </div>
 
         {loading ? (
           <div className="py-12 text-center text-slate-400 text-xs">Memuat data penggajian...</div>
-        ) : payrollItems.length === 0 ? (
-          <div className="py-12 text-center text-slate-400 text-xs">Belum ada slip gaji yang diproses.</div>
+        ) : filteredPayrollItems.length === 0 ? (
+          <div className="py-12 text-center space-y-3">
+            <Receipt className="w-12 h-12 text-slate-300 mx-auto" />
+            <p className="text-sm font-bold text-slate-700">Belum ada slip gaji yang diproses</p>
+            <p className="text-xs text-slate-400">Gunakan tombol "+ Buat Slip Gaji Manual" di atas untuk membuat slip dengan perkalian makan, transport, dan lembur.</p>
+            <button
+              onClick={() => handleOpenManualSlipModal()}
+              className="px-4 py-2 bg-[#3d1e0f] text-amber-100 rounded-xl text-xs font-bold hover:bg-amber-950 transition-colors shadow-sm"
+            >
+              + Buat Slip Gaji Sekarang
+            </button>
+          </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {payrollItems.map((item) => {
-              const setting = payrollSettings.find((s) => s.user_id === item.user_id);
-              const customBonusSum = (setting?.custom_components || [])
+            {filteredPayrollItems.map((item) => {
+              const isManualSlip = Boolean(item.snapshot_data?.is_manual);
+              const customBonusSum = (item.custom_components || [])
                 .filter((c) => c.type === 'bonus')
                 .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-              
-              const calculatedNet = item.net_salary + customBonusSum;
+              const customDeductionSum = (item.custom_components || [])
+                .filter((c) => c.type === 'deduction')
+                .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+
+              const calculatedNet = item.net_salary || (item.base_salary_calculated + item.transport_calculated + item.meal_calculated + customBonusSum - customDeductionSum);
 
               return (
                 <div
@@ -295,60 +749,76 @@ export default function PayrollPage() {
                             : 'bg-amber-100 text-amber-800'
                         }`}
                       >
-                        {item.status === 'approved' ? 'Disetujui Owner' : 'Draft Slip Gaji'}
+                        {item.status === 'approved' ? '✓ Disetujui' : 'Draft'}
+                      </span>
+                      {isManualSlip && (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                          Perkalian Manual
+                        </span>
+                      )}
+                      <span className="text-[11px] text-slate-400">
+                        ({item.branch_name || 'Cabang'})
                       </span>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 font-mono">
                       <span>Presensi: <strong>{item.days_present} Hari</strong></span>
                       <span>Pokok: {formatRupiah(item.base_salary_calculated)}</span>
-                      <span>Transport: {formatRupiah(item.transport_calculated)}</span>
                       <span>Makan: {formatRupiah(item.meal_calculated)}</span>
-                      {customBonusSum > 0 && (
+                      <span>Transport: {formatRupiah(item.transport_calculated)}</span>
+                      {item.bonus_amount > 0 && (
                         <span className="text-emerald-700 font-bold">
-                          +Poin Tambahan: {formatRupiah(customBonusSum)}
+                          +Lembur/Bonus: {formatRupiah(item.bonus_amount)}
+                        </span>
+                      )}
+                      {item.total_deductions > 0 && (
+                        <span className="text-rose-700 font-bold">
+                          -Potongan: {formatRupiah(item.total_deductions)}
                         </span>
                       )}
                     </div>
 
-                    {setting?.custom_components && setting.custom_components.length > 0 && (
+                    {item.custom_components && item.custom_components.length > 0 && (
                       <div className="flex flex-wrap gap-1 pt-1">
-                        {setting.custom_components.map((c) => (
+                        {item.custom_components.map((c, idx) => (
                           <span
-                            key={c.id}
-                            className="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold"
+                            key={c.id || idx}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              c.type === 'bonus'
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                : 'bg-rose-50 border-rose-200 text-rose-800'
+                            }`}
                           >
-                            + {c.name}: {formatRupiah(c.amount)}
+                            {c.type === 'bonus' ? '+' : '-'} {c.name}: {formatRupiah(c.amount)}
                           </span>
                         ))}
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between sm:justify-end gap-4">
+                  <div className="flex items-center justify-between sm:justify-end gap-3">
                     <div className="text-left sm:text-right">
-                      <p className="text-[10px] text-slate-400 font-semibold uppercase">GAJI BERSIH (NET)</p>
-                      <p className="text-base font-extrabold text-emerald-700 font-mono">{formatRupiah(calculatedNet)}</p>
+                      <p className="text-[10px] text-slate-400 font-semibold uppercase">GAJI BERSIH (NETTO)</p>
+                      <p className="text-base font-black text-emerald-700 font-mono">{formatRupiah(calculatedNet)}</p>
                     </div>
 
-                    <div className="flex items-center gap-2 print:hidden">
+                    <div className="flex items-center gap-1.5 print:hidden">
                       <button
-                        onClick={() => setSelectedPayroll({ ...item, net_salary: calculatedNet, custom_components: setting?.custom_components })}
-                        className="px-3 py-1.5 rounded-xl bg-amber-100 text-brand-900 font-bold text-xs hover:bg-amber-200 flex items-center gap-1.5 transition-colors"
-                        title="Lihat & Cetak Slip Gaji Resmimu"
+                        onClick={() => setSelectedPayroll(item)}
+                        className="px-3 py-2 rounded-xl bg-amber-100 text-[#3d1e0f] font-bold text-xs hover:bg-amber-200 flex items-center gap-1.5 transition-colors"
+                        title="Lihat & Cetak Slip Gaji Resmi"
                       >
-                        <Eye className="w-3.5 h-3.5 text-amber-700" />
-                        <span>Cetak Slip Gaji</span>
+                        <Eye className="w-3.5 h-3.5 text-amber-800" />
+                        <span>Cetak Slip</span>
                       </button>
 
-                      {item.status === 'draft' && isOwner && (
-                        <button
-                          onClick={() => handleApprovePayroll(item)}
-                          className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700"
-                        >
-                          Setujui Gaji
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleDeletePayroll(item.id, item.user_name)}
+                        className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 transition-colors"
+                        title="Hapus slip gaji ini"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -358,7 +828,618 @@ export default function PayrollPage() {
         )}
       </div>
 
-      {/* Setting Modal - Manual Transport & Poin Komponen Gajian */}
+      {/* ======================================================== */}
+      {/* MODAL: FORM PEMBUATAN SLIP GAJI MANUAL DENGAN PERKALIAN */}
+      {/* ======================================================== */}
+      {showManualSlipModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-hidden flex flex-col border border-slate-100">
+            
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 bg-[#3d1e0f] text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+                  <Calculator className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-white">
+                    Form Pembuatan Slip Gaji Manual
+                  </h3>
+                  <p className="text-[11px] text-amber-200/90">
+                    Masukan perkalian Gaji Pokok, Uang Makan, Transport, Lembur Mingguan & Bonus
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowManualSlipModal(false)}
+                className="p-1 rounded-full text-amber-200 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body / Scrollable Form */}
+            <form
+              onSubmit={(e) => handleSubmitManualSlip(e, true)}
+              className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs text-slate-800"
+            >
+              
+              {/* 1. Identitas Karyawan & Periode */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider block">
+                  1. Identitas Karyawan & Cabang
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Pilihan Karyawan */}
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Pilih Karyawan *</label>
+                    <select
+                      value={manualEmployeeType === 'existing' ? manualEmployeeId : 'custom'}
+                      onChange={(e) => handleSelectEmployeeForManual(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+                    >
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.full_name} ({emp.role})
+                        </option>
+                      ))}
+                      <option value="custom">+ Nama Lain / Karyawan Baru (Input Manual)</option>
+                    </select>
+                  </div>
+
+                  {/* Input Nama Karyawan Manual jika Custom */}
+                  {manualEmployeeType === 'custom' ? (
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">Nama Lengkap Karyawan *</label>
+                      <input
+                        type="text"
+                        required
+                        value={manualEmployeeName}
+                        onChange={(e) => setManualEmployeeName(e.target.value)}
+                        placeholder="Masukkan nama karyawan..."
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">Cabang Penugasan</label>
+                      <select
+                        value={manualBranchId}
+                        onChange={(e) => {
+                          setManualBranchId(e.target.value);
+                          const b = branches.find((br) => br.id === e.target.value);
+                          if (b) setManualBranchName(b.name);
+                        }}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+                      >
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            Cabang {b.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Label Periode Gaji</label>
+                    <input
+                      type="text"
+                      value={manualPeriodLabel}
+                      onChange={(e) => setManualPeriodLabel(e.target.value)}
+                      placeholder="e.g. Periode Oktober 2026 / Minggu ke-3"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-slate-700">Total Hari Masuk / Hadir</label>
+                      <span className="text-[10px] text-amber-700 font-semibold">Otomatis sinkron ke Makan & Transport</span>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="number"
+                        min="0"
+                        max="31"
+                        value={manualDaysPresent}
+                        onChange={(e) => handleSyncDays(Number(e.target.value) || 0)}
+                        className="w-24 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none"
+                      />
+                      <span className="text-xs text-slate-500 font-semibold">Hari</span>
+                      <div className="flex gap-1 ml-auto">
+                        <button
+                          type="button"
+                          onClick={() => handleSyncDays(20)}
+                          className="px-2 py-1 bg-slate-200 hover:bg-slate-300 rounded-lg text-[10px] font-bold"
+                        >
+                          20
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSyncDays(24)}
+                          className="px-2 py-1 bg-amber-200 hover:bg-amber-300 text-slate-900 rounded-lg text-[10px] font-bold"
+                        >
+                          24
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSyncDays(26)}
+                          className="px-2 py-1 bg-slate-200 hover:bg-slate-300 rounded-lg text-[10px] font-bold"
+                        >
+                          26
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Komponen Gaji Pokok */}
+              <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold text-[#3d1e0f] uppercase tracking-wider">
+                    2. Gaji Pokok
+                  </span>
+                  {/* Mode Selector */}
+                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-amber-200">
+                    <button
+                      type="button"
+                      onClick={() => setBaseMode('fixed')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all ${
+                        baseMode === 'fixed'
+                          ? 'bg-[#3d1e0f] text-amber-100 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Tetap / Bulan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBaseMode('daily')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all ${
+                        baseMode === 'daily'
+                          ? 'bg-[#3d1e0f] text-amber-100 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Hitung Harian (Tarif x Hari)
+                    </button>
+                  </div>
+                </div>
+
+                {baseMode === 'fixed' ? (
+                  <div className="flex items-center justify-between gap-3 bg-white p-3 rounded-xl border border-amber-100">
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-700 block">Nominal Gaji Pokok Tetap</span>
+                      <span className="text-[10px] text-slate-400">Gaji bulanan reguler</span>
+                    </div>
+                    <div className="w-48">
+                      <input
+                        type="number"
+                        value={baseFixedAmount}
+                        onChange={(e) => setBaseFixedAmount(Number(e.target.value) || 0)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-black font-mono text-right text-slate-900"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white p-3 rounded-xl border border-amber-100 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Tarif per Hari (Rp)</label>
+                        <input
+                          type="number"
+                          value={baseDailyRate}
+                          onChange={(e) => setBaseDailyRate(Number(e.target.value) || 0)}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Jumlah Hari</label>
+                        <input
+                          type="number"
+                          value={baseDays}
+                          onChange={(e) => setBaseDays(Number(e.target.value) || 0)}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                        />
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 block">Subtotal Pokok</span>
+                        <span className="font-mono font-black text-xs text-[#3d1e0f]">
+                          {formatRupiah(calcBaseTotal)}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] font-mono text-amber-800">
+                      Rumus: {formatRupiah(baseDailyRate)} x {baseDays} hari = {formatRupiah(calcBaseTotal)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Komponen Uang Makan (Perkalian) */}
+              <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold text-emerald-900 uppercase tracking-wider">
+                    3. Uang Makan (Perkalian Hari)
+                  </span>
+                  <span className="text-xs font-mono font-black text-emerald-800">
+                    Subtotal: {formatRupiah(calcMealTotal)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-white p-3 rounded-xl border border-emerald-100">
+                  <div className="sm:col-span-5">
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Tarif Makan per Hari (Rp)</label>
+                    <input
+                      type="number"
+                      value={mealRate}
+                      onChange={(e) => setMealRate(Number(e.target.value) || 0)}
+                      placeholder="15000"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                    />
+                  </div>
+                  <div className="sm:col-span-1 text-center font-bold text-slate-400 text-sm">
+                    x
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Jumlah Hari</label>
+                    <input
+                      type="number"
+                      value={mealDays}
+                      onChange={(e) => setMealDays(Number(e.target.value) || 0)}
+                      placeholder="24"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                    />
+                  </div>
+                  <div className="sm:col-span-3 text-right">
+                    <span className="text-[10px] text-slate-400 block">Total Makan</span>
+                    <span className="font-mono font-black text-xs text-emerald-700">
+                      {formatRupiah(calcMealTotal)}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[10px] font-mono text-emerald-800">
+                  Contoh: Makan {formatRupiah(mealRate)} x {mealDays} hari = {formatRupiah(calcMealTotal)}
+                </p>
+              </div>
+
+              {/* 4. Komponen Uang Transport (Perkalian) */}
+              <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-200/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold text-blue-900 uppercase tracking-wider">
+                    4. Uang Transportasi (Perkalian Hari)
+                  </span>
+                  <span className="text-xs font-mono font-black text-blue-800">
+                    Subtotal: {formatRupiah(calcTransportTotal)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-white p-3 rounded-xl border border-blue-100">
+                  <div className="sm:col-span-5">
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Tarif Transport per Hari (Rp)</label>
+                    <input
+                      type="number"
+                      value={transportRate}
+                      onChange={(e) => setTransportRate(Number(e.target.value) || 0)}
+                      placeholder="15000"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                    />
+                  </div>
+                  <div className="sm:col-span-1 text-center font-bold text-slate-400 text-sm">
+                    x
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Jumlah Hari</label>
+                    <input
+                      type="number"
+                      value={transportDays}
+                      onChange={(e) => setTransportDays(Number(e.target.value) || 0)}
+                      placeholder="24"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                    />
+                  </div>
+                  <div className="sm:col-span-3 text-right">
+                    <span className="text-[10px] text-slate-400 block">Total Transport</span>
+                    <span className="font-mono font-black text-xs text-blue-700">
+                      {formatRupiah(calcTransportTotal)}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[10px] font-mono text-blue-800">
+                  Contoh: Transport {formatRupiah(transportRate)} x {transportDays} hari = {formatRupiah(calcTransportTotal)}
+                </p>
+              </div>
+
+              {/* 5. Komponen Lembur Mingguan / Jam */}
+              <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableOvertime}
+                      onChange={(e) => setEnableOvertime(e.target.checked)}
+                      className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500"
+                    />
+                    <span className="text-[11px] font-extrabold text-purple-900 uppercase tracking-wider">
+                      5. Lembur (Overtime Mingguan / Jam)
+                    </span>
+                  </label>
+                  {enableOvertime && (
+                    <span className="text-xs font-mono font-black text-purple-800">
+                      Subtotal: {formatRupiah(calcOvertimeTotal)}
+                    </span>
+                  )}
+                </div>
+
+                {enableOvertime && (
+                  <div className="bg-white p-3 rounded-xl border border-purple-100 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                      <div className="sm:col-span-4">
+                        <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Judul Lembur</label>
+                        <input
+                          type="text"
+                          value={overtimeTitle}
+                          onChange={(e) => setOvertimeTitle(e.target.value)}
+                          placeholder="Lembur Mingguan"
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900"
+                        />
+                      </div>
+                      <div className="sm:col-span-3">
+                        <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Tarif (Rp)</label>
+                        <input
+                          type="number"
+                          value={overtimeRate}
+                          onChange={(e) => setOvertimeRate(Number(e.target.value) || 0)}
+                          placeholder="25000"
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                        />
+                      </div>
+                      <div className="sm:col-span-1 text-center font-bold text-slate-400 text-sm">
+                        x
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Pengali</label>
+                        <input
+                          type="number"
+                          value={overtimeMultiplier}
+                          onChange={(e) => setOvertimeMultiplier(Number(e.target.value) || 0)}
+                          placeholder="4"
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Satuan</label>
+                        <select
+                          value={overtimeUnit}
+                          onChange={(e) => setOvertimeUnit(e.target.value)}
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                        >
+                          <option value="minggu">Minggu</option>
+                          <option value="jam">Jam</option>
+                          <option value="hari">Hari</option>
+                          <option value="shift">Shift</option>
+                        </select>
+                      </div>
+                    </div>
+                    <p className="text-[10px] font-mono text-purple-800">
+                      Rincian: {overtimeTitle} {formatRupiah(overtimeRate)} x {overtimeMultiplier} {overtimeUnit} = {formatRupiah(calcOvertimeTotal)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* 6. Bonus / Poin Tambahan */}
+              <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold text-[#3d1e0f] uppercase tracking-wider">
+                    6. Bonus & Tunjangan Tambahan (Poin / Baju / Omzet)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAddManualBonus}
+                    className="text-xs text-brand-800 font-extrabold hover:underline"
+                  >
+                    + Tambah Baris Bonus
+                  </button>
+                </div>
+
+                {manualBonuses.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic">Tidak ada bonus tambahan.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {manualBonuses.map((bonus, idx) => (
+                      <div key={bonus.id || idx} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={bonus.name}
+                            onChange={(e) => handleUpdateManualBonus(idx, { name: e.target.value })}
+                            placeholder="Nama bonus (e.g. Bonus Omzet, Uang Baju)"
+                            className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-800"
+                          />
+
+                          <select
+                            value={bonus.mode}
+                            onChange={(e) => handleUpdateManualBonus(idx, { mode: e.target.value as any })}
+                            className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-700"
+                          >
+                            <option value="fixed">Nominal Langsung</option>
+                            <option value="multiplier">Tarif x Qty</option>
+                          </select>
+
+                          {bonus.mode === 'fixed' ? (
+                            <input
+                              type="number"
+                              value={bonus.rate}
+                              onChange={(e) => handleUpdateManualBonus(idx, { rate: Number(e.target.value) || 0 })}
+                              placeholder="Rp"
+                              className="w-28 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-black font-mono text-right text-emerald-800"
+                            />
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                value={bonus.rate}
+                                onChange={(e) => handleUpdateManualBonus(idx, { rate: Number(e.target.value) || 0 })}
+                                placeholder="Tarif"
+                                className="w-20 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-right"
+                              />
+                              <span className="text-xs font-bold text-slate-400">x</span>
+                              <input
+                                type="number"
+                                value={bonus.qty}
+                                onChange={(e) => handleUpdateManualBonus(idx, { qty: Number(e.target.value) || 0 })}
+                                placeholder="Qty"
+                                className="w-14 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-center"
+                              />
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveManualBonus(bonus.id)}
+                            className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
+                            title="Hapus baris bonus ini"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {bonus.mode === 'multiplier' && (
+                          <div className="flex justify-between items-center text-[10px] text-emerald-800 font-mono pl-1">
+                            <span>
+                              {formatRupiah(bonus.rate)} x {bonus.qty} {bonus.unit} = {formatRupiah(bonus.total)}
+                            </span>
+                            <span className="font-bold">Total: {formatRupiah(bonus.total)}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 7. Potongan Gaji (Kasbon / Keterlambatan) */}
+              <div className="p-4 rounded-2xl bg-rose-50/50 border border-rose-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold text-rose-900 uppercase tracking-wider">
+                    7. Potongan Gaji (Kasbon / Izin / Keterlambatan)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAddManualDeduction}
+                    className="text-xs text-rose-700 font-extrabold hover:underline"
+                  >
+                    + Tambah Potongan
+                  </button>
+                </div>
+
+                {manualDeductions.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic">Tidak ada potongan gaji (nihil).</p>
+                ) : (
+                  <div className="space-y-2">
+                    {manualDeductions.map((ded, idx) => (
+                      <div key={ded.id || idx} className="bg-white p-2.5 rounded-xl border border-rose-100 flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={ded.name}
+                          onChange={(e) => handleUpdateManualDeduction(idx, { name: e.target.value })}
+                          placeholder="Nama potongan (e.g. Kasbon Toko, Terlambat)"
+                          className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-800"
+                        />
+                        <input
+                          type="number"
+                          value={ded.amount}
+                          onChange={(e) => handleUpdateManualDeduction(idx, { amount: Number(e.target.value) || 0 })}
+                          placeholder="Nominal Potongan (Rp)"
+                          className="w-32 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-black font-mono text-right text-rose-700"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveManualDeduction(ded.id)}
+                          className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 8. Catatan Khusus Slip */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">Catatan Tambahan (Opsional)</label>
+                <input
+                  type="text"
+                  value={manualNotes}
+                  onChange={(e) => setManualNotes(e.target.value)}
+                  placeholder="Contoh: Ditransfer via BCA a.n Siti Kasir tanggal 28 Okt 2026"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none"
+                />
+              </div>
+
+              {/* 9. Live Summary & Grand Total (Netto) */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-[#3d1e0f] to-amber-950 text-white space-y-2 shadow-lg">
+                <div className="flex justify-between items-center text-[11px] text-amber-200">
+                  <span>Total Penerimaan Bruto:</span>
+                  <span className="font-mono font-bold">{formatRupiah(calcGrossTotal)}</span>
+                </div>
+                {calcDeductionsTotal > 0 && (
+                  <div className="flex justify-between items-center text-[11px] text-rose-300">
+                    <span>Total Potongan:</span>
+                    <span className="font-mono font-bold">-{formatRupiah(calcDeductionsTotal)}</span>
+                  </div>
+                )}
+                <div className="pt-2 border-t border-amber-800/80 flex justify-between items-center">
+                  <div>
+                    <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider block">
+                      TOTAL GAJI BERSIH (NETTO)
+                    </span>
+                    <span className="text-[10px] text-slate-300">
+                      Yang wajib dibayarkan ke karyawan
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xl sm:text-2xl font-black font-mono text-amber-300">
+                      {formatRupiah(calcNetTotal)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowManualSlipModal(false)}
+                  className="py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingManual}
+                  className="flex-1 py-3 px-5 rounded-xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-extrabold text-xs shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Eye className="w-4 h-4 text-amber-300" />
+                  <span>{isSubmittingManual ? 'Menyimpan...' : 'Simpan & Lihat Slip Gaji'}</span>
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: PENGATURAN KOMPONEN GAJI DEFAULT KARYAWAN */}
+      {/* ======================================================== */}
       {editingSettingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
@@ -396,7 +1477,7 @@ export default function PayrollPage() {
                     type="number"
                     value={transport}
                     onChange={(e) => setTransport(e.target.value)}
-                    placeholder="25000"
+                    placeholder="15000"
                     className="px-3 py-2 border rounded-xl text-xs font-bold text-slate-900"
                   />
                   <select
@@ -418,6 +1499,7 @@ export default function PayrollPage() {
                     type="number"
                     value={meal}
                     onChange={(e) => setMeal(e.target.value)}
+                    placeholder="15000"
                     className="px-3 py-2 border rounded-xl text-xs font-bold text-slate-900"
                   />
                   <select
@@ -493,7 +1575,7 @@ export default function PayrollPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 rounded-xl bg-brand-800 hover:bg-brand-900 text-amber-100 font-bold text-xs shadow-md"
+                  className="flex-1 py-3 rounded-xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-bold text-xs shadow-md"
                 >
                   Simpan Pengaturan
                 </button>
@@ -503,37 +1585,42 @@ export default function PayrollPage() {
         </div>
       )}
 
-      {/* Official Beautiful Pay Slip Modal & Printable Document */}
+      {/* ======================================================== */}
+      {/* MODAL: OFFICIAL BEAUTIFUL PAY SLIP & PRINTABLE DOCUMENT */}
+      {/* ======================================================== */}
       {selectedPayroll && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 max-h-[95vh] flex flex-col">
             
             {/* Modal Top Control Bar (Hidden when printing) */}
-            <div className="p-3 bg-brand-900 text-white flex items-center justify-between print:hidden">
+            <div className="p-3 bg-[#3d1e0f] text-white flex items-center justify-between print:hidden">
               <span className="font-bold text-xs tracking-wider uppercase text-amber-300">Pratinjau Slip Gaji Resmi</span>
               <button
                 onClick={() => setSelectedPayroll(null)}
-                className="p-1 rounded-lg text-amber-200 hover:bg-brand-800 hover:text-white"
+                className="p-1 rounded-lg text-amber-200 hover:bg-white/10 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Slip Gaji Content (Formatted for Screen & Printable PDF Document) */}
-            <div id="receipt-print-area" className="p-6 md:p-8 bg-white text-slate-800 space-y-6 overflow-y-auto">
+            <div id="receipt-print-area" className="p-6 md:p-8 bg-white text-slate-800 space-y-5 overflow-y-auto">
               
               {/* Header Company & Logo */}
-              <div className="flex items-center justify-between border-b-2 border-brand-900 pb-4">
+              <div className="flex items-center justify-between border-b-2 border-[#3d1e0f] pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-2xl bg-amber-500 p-1 shadow-lg flex items-center justify-center font-bold text-brand-900 text-2xl">
-                    {settings.logo_url && !settings.logo_url.includes('placeholder') ? (
-                      <img src={settings.logo_url} alt="Logo" className="w-full h-full object-cover rounded-xl" />
-                    ) : (
-                      <span>PL</span>
-                    )}
+                  <div className="w-14 h-14 rounded-2xl bg-black border border-amber-500/40 p-1 shadow-lg flex items-center justify-center font-bold text-white text-2xl overflow-hidden">
+                    <img
+                      src={settings.logo_url || '/logo.jpg'}
+                      alt="Logo"
+                      className="w-full h-full object-contain rounded-xl"
+                      onError={(e) => {
+                        e.currentTarget.src = '/logo.jpg';
+                      }}
+                    />
                   </div>
                   <div>
-                    <h2 className="font-extrabold text-lg md:text-xl text-brand-900 tracking-tight leading-none uppercase">
+                    <h2 className="font-extrabold text-lg md:text-xl text-[#3d1e0f] tracking-tight leading-none uppercase">
                       {settings.app_name}
                     </h2>
                     <p className="text-xs font-semibold text-amber-700 mt-1">{settings.brand_owner}</p>
@@ -542,10 +1629,12 @@ export default function PayrollPage() {
                 </div>
 
                 <div className="text-right">
-                  <span className="inline-block px-3 py-1 rounded-full bg-brand-900 text-amber-300 font-extrabold text-xs tracking-wider uppercase">
+                  <span className="inline-block px-3 py-1 rounded-full bg-[#3d1e0f] text-amber-300 font-extrabold text-xs tracking-wider uppercase">
                     SLIP GAJI
                   </span>
-                  <p className="text-xs font-mono font-bold text-slate-700 mt-1.5">Periode: {selectedMonth}</p>
+                  <p className="text-xs font-mono font-bold text-slate-700 mt-1.5">
+                    {selectedPayroll.snapshot_data?.period_label || `Periode: ${selectedMonth}`}
+                  </p>
                 </div>
               </div>
 
@@ -557,7 +1646,7 @@ export default function PayrollPage() {
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Cabang Penugasan</span>
-                  <span className="font-bold text-brand-900">{selectedPayroll.branch_name || 'Cidodol'}</span>
+                  <span className="font-bold text-[#3d1e0f]">{selectedPayroll.branch_name || 'Cidodol'}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Kehadiran</span>
@@ -569,7 +1658,7 @@ export default function PayrollPage() {
                 </div>
               </div>
 
-              {/* Itemized Compensation Table */}
+              {/* Itemized Compensation Table dengan Rincian Perkalian Transparan */}
               <div className="space-y-3">
                 <p className="text-xs font-extrabold text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-1">
                   Rincian Penerimaan & Komponen Gaji
@@ -579,41 +1668,110 @@ export default function PayrollPage() {
                   <thead>
                     <tr className="border-b border-slate-200 text-slate-400 text-[10px] uppercase text-left">
                       <th className="py-1 font-bold">Komponen Gaji</th>
-                      <th className="py-1 font-bold text-right">Nominal (Rp)</th>
+                      <th className="py-1 font-bold text-right">Rincian Nominal (Rp)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+                    
+                    {/* Gaji Pokok */}
                     <tr>
-                      <td className="py-2.5">Gaji Pokok</td>
-                      <td className="py-2.5 text-right font-mono font-bold">{formatRupiah(selectedPayroll.base_salary_calculated)}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2.5">Uang Transportasi Operasional</td>
-                      <td className="py-2.5 text-right font-mono font-bold">{formatRupiah(selectedPayroll.transport_calculated)}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2.5">Uang Makan Harian</td>
-                      <td className="py-2.5 text-right font-mono font-bold">{formatRupiah(selectedPayroll.meal_calculated)}</td>
+                      <td className="py-2.5">
+                        <span className="font-bold">Gaji Pokok</span>
+                        {selectedPayroll.snapshot_data?.base_salary?.mode === 'daily' && (
+                          <span className="text-[11px] text-slate-500 font-mono block">
+                            ( {formatRupiah(selectedPayroll.snapshot_data.base_salary.rate)} x {selectedPayroll.snapshot_data.base_salary.days} hari )
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 text-right font-mono font-bold">
+                        {formatRupiah(selectedPayroll.base_salary_calculated)}
+                      </td>
                     </tr>
 
-                    {/* Custom Components breakdown */}
-                    {selectedPayroll.custom_components?.map((c, idx) => (
-                      <tr key={idx} className="bg-emerald-50/50">
-                        <td className="py-2.5 text-emerald-900 font-semibold flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                          <span>{c.name}</span>
+                    {/* Uang Makan */}
+                    <tr>
+                      <td className="py-2.5">
+                        <span className="font-bold">Uang Makan</span>
+                        {selectedPayroll.snapshot_data?.meal ? (
+                          <span className="text-[11px] text-emerald-700 font-mono block">
+                            ( {formatRupiah(selectedPayroll.snapshot_data.meal.rate)} x {selectedPayroll.snapshot_data.meal.days} hari )
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 block">(Berdasarkan presensi kerja)</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 text-right font-mono font-bold text-emerald-800">
+                        {formatRupiah(selectedPayroll.meal_calculated)}
+                      </td>
+                    </tr>
+
+                    {/* Uang Transportasi */}
+                    <tr>
+                      <td className="py-2.5">
+                        <span className="font-bold">Uang Transportasi Operasional</span>
+                        {selectedPayroll.snapshot_data?.transport ? (
+                          <span className="text-[11px] text-blue-700 font-mono block">
+                            ( {formatRupiah(selectedPayroll.snapshot_data.transport.rate)} x {selectedPayroll.snapshot_data.transport.days} hari )
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 block">(Berdasarkan kehadiran kerja)</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 text-right font-mono font-bold text-blue-800">
+                        {formatRupiah(selectedPayroll.transport_calculated)}
+                      </td>
+                    </tr>
+
+                    {/* Lembur (Overtime) jika dari Manual Snapshot */}
+                    {selectedPayroll.snapshot_data?.overtime && (
+                      <tr className="bg-purple-50/50">
+                        <td className="py-2.5 text-purple-950">
+                          <span className="font-bold">{selectedPayroll.snapshot_data.overtime.title || 'Lembur Mingguan'}</span>
+                          <span className="text-[11px] text-purple-700 font-mono block">
+                            ( {formatRupiah(selectedPayroll.snapshot_data.overtime.rate)} x {selectedPayroll.snapshot_data.overtime.multiplier} {selectedPayroll.snapshot_data.overtime.unit} )
+                          </span>
                         </td>
-                        <td className="py-2.5 text-right font-mono font-bold text-emerald-800">
-                          +{formatRupiah(c.amount)}
+                        <td className="py-2.5 text-right font-mono font-bold text-purple-900">
+                          +{formatRupiah(selectedPayroll.snapshot_data.overtime.total)}
                         </td>
                       </tr>
-                    ))}
+                    )}
+
+                    {/* Custom Components / Bonus Tambahan */}
+                    {selectedPayroll.custom_components
+                      ?.filter((c) => {
+                        // Jangan duplikasi lembur jika sudah dirender di atas
+                        if (selectedPayroll.snapshot_data?.overtime && c.name.includes(selectedPayroll.snapshot_data.overtime.title)) {
+                          return false;
+                        }
+                        return true;
+                      })
+                      .map((c, idx) => (
+                        <tr
+                          key={idx}
+                          className={c.type === 'bonus' ? 'bg-emerald-50/40' : 'bg-rose-50/40'}
+                        >
+                          <td className={`py-2.5 font-semibold flex items-center gap-1.5 ${c.type === 'bonus' ? 'text-emerald-900' : 'text-rose-900'}`}>
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${c.type === 'bonus' ? 'bg-emerald-600' : 'bg-rose-600'}`}
+                            />
+                            <span>{c.name}</span>
+                          </td>
+                          <td
+                            className={`py-2.5 text-right font-mono font-bold ${
+                              c.type === 'bonus' ? 'text-emerald-800' : 'text-rose-800'
+                            }`}
+                          >
+                            {c.type === 'bonus' ? '+' : '-'} {formatRupiah(c.amount)}
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
 
               {/* Highlight Net Salary Summary Box */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-brand-900 to-amber-950 text-white flex items-center justify-between shadow-lg">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-[#3d1e0f] to-amber-950 text-white flex items-center justify-between shadow-lg">
                 <div>
                   <p className="text-[11px] text-amber-300 font-bold uppercase tracking-wider">Total Gaji Bersih (Netto)</p>
                   <p className="text-xs text-slate-300">Telah ditransfer / diserahkan tunai</p>
@@ -625,22 +1783,29 @@ export default function PayrollPage() {
                 </div>
               </div>
 
+              {/* Notes jika ada */}
+              {selectedPayroll.snapshot_data?.notes && (
+                <div className="p-2.5 bg-amber-50/80 rounded-xl border border-amber-200 text-xs text-slate-700 italic">
+                  <strong>Catatan:</strong> "{selectedPayroll.snapshot_data.notes}"
+                </div>
+              )}
+
               {/* Signatures & Approval Area */}
-              <div className="pt-6 border-t border-slate-200 grid grid-cols-2 gap-4 text-center text-xs">
+              <div className="pt-4 border-t border-slate-200 grid grid-cols-2 gap-4 text-center text-xs">
                 <div>
                   <p className="text-slate-500 font-medium">Penerima Gaji,</p>
-                  <div className="h-14 flex items-end justify-center">
+                  <div className="h-12 flex items-end justify-center">
                     <span className="border-b border-slate-400 w-32 inline-block font-bold text-slate-900">
-                      ( {selectedPayroll.user_name} )
+                      ( {selectedPayroll.user_name?.split(' ')[0] || 'Karyawan'} )
                     </span>
                   </div>
                 </div>
 
                 <div>
                   <p className="text-slate-500 font-medium">Owner / Management,</p>
-                  <div className="h-14 flex items-end justify-center">
+                  <div className="h-12 flex items-end justify-center">
                     <span className="border-b border-slate-400 w-32 inline-block font-bold text-slate-900">
-                      ( Hj. Nafa )
+                      ( Nasrullah )
                     </span>
                   </div>
                 </div>
@@ -648,7 +1813,7 @@ export default function PayrollPage() {
 
               {/* Watermark / Footer */}
               <div className="text-center pt-2 text-[10px] text-slate-400 border-t border-dashed border-slate-200">
-                <p>Dokumen Resmi Slip Gaji Mister Pancong Lumer • By Manage Nafa Family</p>
+                <p>Dokumen Resmi Slip Gaji Mister Pancong Lumer • Dicetak Otomatis</p>
               </div>
 
             </div>
@@ -657,7 +1822,7 @@ export default function PayrollPage() {
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex gap-3 print:hidden">
               <button
                 onClick={handlePrintPDF}
-                className="flex-1 py-3.5 rounded-2xl bg-brand-800 hover:bg-brand-900 text-amber-100 font-extrabold text-xs shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all"
+                className="flex-1 py-3.5 rounded-2xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-extrabold text-xs shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all"
               >
                 <Printer className="w-4 h-4 text-amber-400" />
                 <span>Print PDF Slip Gaji</span>
