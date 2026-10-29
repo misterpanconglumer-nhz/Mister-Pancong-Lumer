@@ -28,6 +28,10 @@ import {
   Sparkles,
   Receipt,
   Store,
+  Copy,
+  MessageSquare,
+  ExternalLink,
+  Share2,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 
@@ -65,13 +69,14 @@ export default function PayrollPage() {
   // Selected item modal state for pay slip preview
   const [selectedPayroll, setSelectedPayroll] = useState<PayrollItem | null>(null);
   const [editingSettingUser, setEditingSettingUser] = useState<PayrollSetting | null>(null);
+  const [copiedSlipId, setCopiedSlipId] = useState<string | null>(null);
 
   // Form state for updating employee payroll settings
   const [baseSalary, setBaseSalary] = useState<string>('1500000');
   const [baseSalaryType, setBaseSalaryType] = useState<'monthly' | 'per_day' | 'per_shift'>('monthly');
-  const [transport, setTransport] = useState<string>('25000');
+  const [transport, setTransport] = useState<string>('15000');
   const [transportType, setTransportType] = useState<'monthly' | 'per_day' | 'manual'>('per_day');
-  const [meal, setMeal] = useState<string>('25000');
+  const [meal, setMeal] = useState<string>('15000');
   const [mealType, setMealType] = useState<'monthly' | 'per_day' | 'manual'>('per_day');
   const [commission, setCommission] = useState<string>('1.5');
   const [bonusRule, setBonusRule] = useState<string>('Target omzet > 10 Juta');
@@ -179,9 +184,9 @@ export default function PayrollPage() {
       setEditingSettingUser(existing);
       setBaseSalary(String(existing.base_salary));
       setBaseSalaryType(existing.base_salary_type);
-      setTransport(String(existing.transport_allowance));
+      setTransport(String(existing.transport_allowance || 15000));
       setTransportType(existing.transport_type || 'per_day');
-      setMeal(String(existing.meal_allowance));
+      setMeal(String(existing.meal_allowance || 15000));
       setMealType(existing.meal_type || 'per_day');
       setCommission(String(existing.sales_commission_rate));
       setBonusRule(existing.bonus_rule || '');
@@ -195,17 +200,17 @@ export default function PayrollPage() {
         user_name: emp.full_name,
         base_salary: 1500000,
         base_salary_type: 'monthly',
-        transport_allowance: 25000,
+        transport_allowance: 15000,
         transport_type: 'per_day',
-        meal_allowance: 25000,
+        meal_allowance: 15000,
         meal_type: 'per_day',
         sales_commission_rate: 1.5,
       });
       setBaseSalary('1500000');
       setBaseSalaryType('monthly');
-      setTransport('25000');
+      setTransport('15000');
       setTransportType('per_day');
-      setMeal('25000');
+      setMeal('15000');
       setMealType('per_day');
       setCommission('1.5');
       setBonusRule('Target omzet');
@@ -250,18 +255,11 @@ export default function PayrollPage() {
     await fetchPayrollData();
   };
 
-  const handleApprovePayroll = async (item: PayrollItem) => {
-    await DataService.savePayrollItem({
-      ...item,
-      status: 'approved',
-    });
-    await fetchPayrollData();
-  };
-
   const handleDeletePayroll = async (itemId: string, name?: string) => {
     if (window.confirm(`Hapus slip gaji untuk ${name || 'karyawan ini'}?`)) {
       await DataService.deletePayrollItem(itemId);
       setPayrollItems((prev) => prev.filter((i) => i.id !== itemId));
+      if (selectedPayroll?.id === itemId) setSelectedPayroll(null);
     }
   };
 
@@ -339,6 +337,106 @@ export default function PayrollPage() {
     setOvertimeUnit('minggu');
     setManualDeductions([]);
     setManualNotes('');
+    setShowManualSlipModal(true);
+  };
+
+  // DUPLIKAT / SALIN DATA SLIP KE FORM SLIP BARU
+  const handleDuplicateSlip = (item: PayrollItem) => {
+    const snap = item.snapshot_data;
+    const days = item.days_present || 24;
+
+    setManualEmployeeType('existing');
+    setManualEmployeeId(item.user_id || 'emp-1');
+    setManualEmployeeName(item.user_name || 'Karyawan');
+    setManualBranchId(item.branch_id || activeBranch?.id || branches[0]?.id || '');
+    setManualBranchName(item.branch_name || activeBranch?.name || branches[0]?.name || 'Cidodol');
+    setManualPeriodLabel(snap?.period_label || `Periode ${selectedMonth}`);
+    setManualDaysPresent(days);
+
+    // Gaji Pokok
+    if (snap?.base_salary?.mode === 'daily') {
+      setBaseMode('daily');
+      setBaseDailyRate(snap.base_salary.rate || 60000);
+      setBaseDays(snap.base_salary.days || days);
+      setBaseFixedAmount((snap.base_salary.rate || 60000) * (snap.base_salary.days || days));
+    } else {
+      setBaseMode('fixed');
+      setBaseFixedAmount(item.base_salary_calculated || 1500000);
+      setBaseDailyRate(days > 0 ? Math.round(item.base_salary_calculated / days) : 60000);
+      setBaseDays(days);
+    }
+
+    // Uang Makan
+    const deducedMealRate = snap?.meal?.rate || (days > 0 ? Math.round(item.meal_calculated / days) : 15000);
+    const deducedMealDays = snap?.meal?.days || days;
+    setMealRate(deducedMealRate);
+    setMealDays(deducedMealDays);
+
+    // Uang Transport
+    const deducedTransportRate = snap?.transport?.rate || (days > 0 ? Math.round(item.transport_calculated / days) : 15000);
+    const deducedTransportDays = snap?.transport?.days || days;
+    setTransportRate(deducedTransportRate);
+    setTransportDays(deducedTransportDays);
+
+    // Lembur
+    if (snap?.overtime) {
+      setEnableOvertime(true);
+      setOvertimeTitle(snap.overtime.title || 'Lembur Mingguan');
+      setOvertimeRate(snap.overtime.rate || 25000);
+      setOvertimeMultiplier(snap.overtime.multiplier || 4);
+      setOvertimeUnit(snap.overtime.unit || 'minggu');
+    } else {
+      // Periksa apakah ada komponen lembur di custom_components
+      const otComponent = item.custom_components?.find((c) => c.name.toLowerCase().includes('lembur'));
+      if (otComponent) {
+        setEnableOvertime(true);
+        setOvertimeTitle(otComponent.name);
+        setOvertimeRate(otComponent.amount);
+        setOvertimeMultiplier(1);
+        setOvertimeUnit('kali');
+      } else {
+        setEnableOvertime(false);
+      }
+    }
+
+    // Bonus Tambahan
+    if (snap?.bonuses && snap.bonuses.length > 0) {
+      setManualBonuses(snap.bonuses);
+    } else {
+      const existingBonuses = (item.custom_components || [])
+        .filter((c) => c.type === 'bonus' && !c.name.toLowerCase().includes('lembur'))
+        .map((c, i) => ({
+          id: `b-${i}-${Date.now()}`,
+          name: c.name,
+          mode: 'fixed' as const,
+          rate: c.amount,
+          qty: 1,
+          unit: 'kali',
+          total: c.amount,
+        }));
+      setManualBonuses(
+        existingBonuses.length > 0
+          ? existingBonuses
+          : [{ id: 'b-1', name: 'Bonus Target / Kerajinan', mode: 'fixed', rate: 100000, qty: 1, unit: 'kali', total: 100000 }]
+      );
+    }
+
+    // Potongan Gaji
+    if (snap?.deductions && snap.deductions.length > 0) {
+      setManualDeductions(snap.deductions);
+    } else {
+      const existingDeductions = (item.custom_components || [])
+        .filter((c) => c.type === 'deduction')
+        .map((c, i) => ({
+          id: `d-${i}-${Date.now()}`,
+          name: c.name,
+          amount: c.amount,
+        }));
+      setManualDeductions(existingDeductions);
+    }
+
+    setManualNotes(snap?.notes || '');
+    setSelectedPayroll(null);
     setShowManualSlipModal(true);
   };
 
@@ -431,6 +529,103 @@ export default function PayrollPage() {
 
   const handleRemoveManualDeduction = (id: string) => {
     setManualDeductions(manualDeductions.filter((d) => d.id !== id));
+  };
+
+  // ==========================================
+  // FITUR SALIN TEKS SLIP KE CLIPBOARD (WHATSAPP FORMAT)
+  // ==========================================
+  const generateSlipWhatsAppText = (item: PayrollItem): string => {
+    const snap = item.snapshot_data;
+    const days = item.days_present || 0;
+    const mealRateDisplay = snap?.meal?.rate || (days > 0 ? Math.round(item.meal_calculated / days) : 15000);
+    const mealDaysDisplay = snap?.meal?.days || days;
+    const transportRateDisplay = snap?.transport?.rate || (days > 0 ? Math.round(item.transport_calculated / days) : 15000);
+    const transportDaysDisplay = snap?.transport?.days || days;
+
+    let text = `🍞 *SLIP GAJI RESMI - ${settings.app_name.toUpperCase()}* 🍞\n`;
+    text += `_${settings.brand_owner}_\n`;
+    text += `================================\n`;
+    text += `👤 *Nama Karyawan:* ${item.user_name}\n`;
+    text += `🏪 *Cabang Penugasan:* ${item.branch_name || 'Cidodol'}\n`;
+    text += `📅 *Periode:* ${snap?.period_label || selectedMonth}\n`;
+    text += `⏱️ *Total Kehadiran:* ${days} Hari Kerja\n`;
+    text += `✅ *Status Dokumen:* ${item.status === 'approved' ? 'Disetujui & Resmi' : 'Draft'}\n`;
+    text += `--------------------------------\n`;
+    text += `💰 *RINCIAN PENERIMAAN GAJI:*\n`;
+
+    // Gaji Pokok
+    if (snap?.base_salary?.mode === 'daily') {
+      text += `• Gaji Pokok: ${formatRupiah(item.base_salary_calculated)} (${formatRupiah(snap.base_salary.rate)} x ${snap.base_salary.days} hari)\n`;
+    } else {
+      text += `• Gaji Pokok: ${formatRupiah(item.base_salary_calculated)}\n`;
+    }
+
+    // Uang Makan
+    if (item.meal_calculated > 0) {
+      text += `• Uang Makan: ${formatRupiah(item.meal_calculated)} (${formatRupiah(mealRateDisplay)} x ${mealDaysDisplay} hari)\n`;
+    }
+
+    // Uang Transport
+    if (item.transport_calculated > 0) {
+      text += `• Uang Transport: ${formatRupiah(item.transport_calculated)} (${formatRupiah(transportRateDisplay)} x ${transportDaysDisplay} hari)\n`;
+    }
+
+    // Lembur
+    if (snap?.overtime && snap.overtime.total > 0) {
+      text += `• ${snap.overtime.title || 'Lembur Mingguan'}: +${formatRupiah(snap.overtime.total)} (${formatRupiah(snap.overtime.rate)} x ${snap.overtime.multiplier} ${snap.overtime.unit})\n`;
+    }
+
+    // Bonus Lainnya
+    const bonuses = (item.custom_components || []).filter((c) => {
+      if (c.type !== 'bonus') return false;
+      if (snap?.overtime && c.name.includes(snap.overtime.title)) return false;
+      return true;
+    });
+    bonuses.forEach((b) => {
+      text += `• ${b.name}: +${formatRupiah(b.amount)}\n`;
+    });
+
+    // Potongan
+    const deductions = (item.custom_components || []).filter((c) => c.type === 'deduction');
+    if (deductions.length > 0 || item.total_deductions > 0) {
+      text += `--------------------------------\n`;
+      text += `🔻 *POTONGAN GAJI:*\n`;
+      deductions.forEach((d) => {
+        text += `• ${d.name}: -${formatRupiah(d.amount)}\n`;
+      });
+    }
+
+    text += `================================\n`;
+    text += `💵 *TOTAL GAJI BERSIH (NETTO):*\n`;
+    text += `👉 *${formatRupiah(item.net_salary)}*\n`;
+    text += `================================\n`;
+
+    if (snap?.notes) {
+      text += `📝 *Catatan:* ${snap.notes}\n\n`;
+    }
+
+    text += `_Terima kasih atas dedikasi dan kerja kerasnya!_\n`;
+    text += `_By Management Mister Pancong Lumer_`;
+
+    return text;
+  };
+
+  const handleCopySlipText = (item: PayrollItem) => {
+    const text = generateSlipWhatsAppText(item);
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedSlipId(item.id);
+      setTimeout(() => setCopiedSlipId(null), 2500);
+    } else {
+      // Fallback
+      alert('Teks slip berhasil disalin!');
+    }
+  };
+
+  const handleSendWhatsApp = (item: PayrollItem) => {
+    const text = generateSlipWhatsAppText(item);
+    const encoded = encodeURIComponent(text);
+    window.open(`https://wa.me/?text=${encoded}`, '_blank');
   };
 
   // Submit and Save Manual Slip
@@ -550,10 +745,10 @@ export default function PayrollPage() {
   };
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-6 pb-20">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm print:hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 sm:p-6 rounded-3xl border border-slate-100 shadow-sm print:hidden">
         <div>
           <div className="flex items-center gap-2">
             <span className="p-2 rounded-2xl bg-amber-100 text-[#3d1e0f]">
@@ -561,7 +756,7 @@ export default function PayrollPage() {
             </span>
             <div>
               <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Laporan & Penggajian Karyawan</h1>
-              <p className="text-xs text-slate-500 mt-0.5">Pembuatan slip manual dengan perkalian (Makan, Transport, Lembur), cetak slip gaji & ekspor PDF</p>
+              <p className="text-xs text-slate-500 mt-0.5">Pembuatan slip manual dengan perkalian (Makan, Transport, Lembur), cetak PDF & fitur copy slip</p>
             </div>
           </div>
         </div>
@@ -605,13 +800,13 @@ export default function PayrollPage() {
           </div>
           <div>
             <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-              <span>Pembuatan Slip Gaji Manual & Fleksibel</span>
+              <span>Pembuatan & Copy Slip Gaji Karyawan</span>
               <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500 text-slate-900 font-black uppercase tracking-wider">
                 Fitur Baru
               </span>
             </h3>
             <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-              Buat slip gaji dengan masukan perkalian transparan: <strong>Makan (Rp 15.000 x 24 hari)</strong>, <strong>Transport (Rp 15.000 x 24 hari)</strong>, <strong>Lembur Mingguan (Rp 25.000 x 4 minggu)</strong>, dan bonus/potongan.
+              Buat slip dengan perkalian <strong>Makan (Rp 15.000 x 24 hari)</strong>, <strong>Transport (Rp 15.000 x 24 hari)</strong>, <strong>Lembur</strong>, serta salin teks slip ke WhatsApp atau duplikat slip lama dalam 1-klik!
             </p>
           </div>
         </div>
@@ -647,8 +842,8 @@ export default function PayrollPage() {
                   <p className="text-[11px] text-slate-500 font-medium capitalize">{emp.role.replace('_', ' ')}</p>
                   <div className="flex flex-wrap gap-2 text-[10px] font-mono font-semibold text-slate-700 mt-1">
                     <span>Pokok: {formatRupiah(setting?.base_salary || 0)}</span>
-                    <span>Transport: {formatRupiah(setting?.transport_allowance || 0)}</span>
-                    <span>Makan: {formatRupiah(setting?.meal_allowance || 0)}</span>
+                    <span>Transport: {formatRupiah(setting?.transport_allowance || 15000)}</span>
+                    <span>Makan: {formatRupiah(setting?.meal_allowance || 15000)}</span>
                     {setting?.custom_components && setting.custom_components.length > 0 && (
                       <span className="text-emerald-700 font-bold">
                         +{setting.custom_components.length} Poin Bonus
@@ -803,13 +998,38 @@ export default function PayrollPage() {
                     </div>
 
                     <div className="flex items-center gap-1.5 print:hidden">
+                      {/* Tombol Copy Teks Slip Cepat */}
+                      <button
+                        onClick={() => handleCopySlipText(item)}
+                        className={`p-2 rounded-xl font-bold text-xs flex items-center gap-1 transition-all ${
+                          copiedSlipId === item.id
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                        title="Salin Teks Slip Gaji (Format WhatsApp)"
+                      >
+                        {copiedSlipId === item.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        <span className="hidden md:inline">{copiedSlipId === item.id ? 'Tersalin' : 'Copy'}</span>
+                      </button>
+
+                      {/* Tombol Duplikasi Slip */}
+                      <button
+                        onClick={() => handleDuplicateSlip(item)}
+                        className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors"
+                        title="Duplikat data slip ini untuk buat slip baru"
+                      >
+                        <Share2 className="w-4 h-4 text-slate-600" />
+                        <span className="hidden md:inline">Duplikat</span>
+                      </button>
+
+                      {/* Tombol Lihat & Cetak Slip */}
                       <button
                         onClick={() => setSelectedPayroll(item)}
                         className="px-3 py-2 rounded-xl bg-amber-100 text-[#3d1e0f] font-bold text-xs hover:bg-amber-200 flex items-center gap-1.5 transition-colors"
                         title="Lihat & Cetak Slip Gaji Resmi"
                       >
                         <Eye className="w-3.5 h-3.5 text-amber-800" />
-                        <span>Cetak Slip</span>
+                        <span>Cetak</span>
                       </button>
 
                       <button
@@ -967,10 +1187,17 @@ export default function PayrollPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleSyncDays(26)}
+                          onClick={() => handleSyncDays(27)}
+                          className="px-2 py-1 bg-emerald-200 hover:bg-emerald-300 text-slate-900 rounded-lg text-[10px] font-bold"
+                        >
+                          27
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSyncDays(30)}
                           className="px-2 py-1 bg-slate-200 hover:bg-slate-300 rounded-lg text-[10px] font-bold"
                         >
-                          26
+                          30
                         </button>
                       </div>
                     </div>
@@ -1589,12 +1816,17 @@ export default function PayrollPage() {
       {/* MODAL: OFFICIAL BEAUTIFUL PAY SLIP & PRINTABLE DOCUMENT */}
       {/* ======================================================== */}
       {selectedPayroll && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 max-h-[95vh] flex flex-col">
             
             {/* Modal Top Control Bar (Hidden when printing) */}
-            <div className="p-3 bg-[#3d1e0f] text-white flex items-center justify-between print:hidden">
-              <span className="font-bold text-xs tracking-wider uppercase text-amber-300">Pratinjau Slip Gaji Resmi</span>
+            <div className="p-3.5 bg-[#3d1e0f] text-white flex items-center justify-between print:hidden">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-amber-400" />
+                <span className="font-extrabold text-xs tracking-wider uppercase text-amber-300">
+                  Pratinjau Slip Gaji Resmi
+                </span>
+              </div>
               <button
                 onClick={() => setSelectedPayroll(null)}
                 className="p-1 rounded-lg text-amber-200 hover:bg-white/10 hover:text-white"
@@ -1604,12 +1836,12 @@ export default function PayrollPage() {
             </div>
 
             {/* Slip Gaji Content (Formatted for Screen & Printable PDF Document) */}
-            <div id="receipt-print-area" className="p-6 md:p-8 bg-white text-slate-800 space-y-5 overflow-y-auto">
+            <div id="receipt-print-area" className="p-5 sm:p-8 bg-white text-slate-800 space-y-4 sm:space-y-5 overflow-y-auto">
               
               {/* Header Company & Logo */}
-              <div className="flex items-center justify-between border-b-2 border-[#3d1e0f] pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-2xl bg-black border border-amber-500/40 p-1 shadow-lg flex items-center justify-center font-bold text-white text-2xl overflow-hidden">
+              <div className="flex items-center justify-between border-b-2 border-[#3d1e0f] pb-3 sm:pb-4">
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-black border border-amber-500/40 p-1 shadow-lg flex items-center justify-center font-bold text-white text-2xl overflow-hidden shrink-0">
                     <img
                       src={settings.logo_url || '/logo.jpg'}
                       alt="Logo"
@@ -1620,29 +1852,29 @@ export default function PayrollPage() {
                     />
                   </div>
                   <div>
-                    <h2 className="font-extrabold text-lg md:text-xl text-[#3d1e0f] tracking-tight leading-none uppercase">
+                    <h2 className="font-extrabold text-base sm:text-xl text-[#3d1e0f] tracking-tight leading-none uppercase">
                       {settings.app_name}
                     </h2>
                     <p className="text-xs font-semibold text-amber-700 mt-1">{settings.brand_owner}</p>
-                    <p className="text-[11px] text-slate-500 font-medium">Spesialis Pancong Lumer & Minuman Segar</p>
+                    <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium">Spesialis Pancong Lumer & Minuman Segar</p>
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <span className="inline-block px-3 py-1 rounded-full bg-[#3d1e0f] text-amber-300 font-extrabold text-xs tracking-wider uppercase">
+                <div className="text-right shrink-0">
+                  <span className="inline-block px-2.5 sm:px-3 py-1 rounded-full bg-[#3d1e0f] text-amber-300 font-extrabold text-[11px] sm:text-xs tracking-wider uppercase shadow-xs">
                     SLIP GAJI
                   </span>
-                  <p className="text-xs font-mono font-bold text-slate-700 mt-1.5">
+                  <p className="text-[11px] sm:text-xs font-mono font-bold text-slate-700 mt-1">
                     {selectedPayroll.snapshot_data?.period_label || `Periode: ${selectedMonth}`}
                   </p>
                 </div>
               </div>
 
               {/* Employee & Document Meta Info Box */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 grid grid-cols-2 gap-3 text-xs">
+              <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 grid grid-cols-2 gap-2.5 sm:gap-3 text-xs">
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nama Karyawan</span>
-                  <span className="font-extrabold text-slate-900 text-sm">{selectedPayroll.user_name}</span>
+                  <span className="font-extrabold text-slate-900 text-xs sm:text-sm">{selectedPayroll.user_name}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Cabang Penugasan</span>
@@ -1659,9 +1891,10 @@ export default function PayrollPage() {
               </div>
 
               {/* Itemized Compensation Table dengan Rincian Perkalian Transparan */}
-              <div className="space-y-3">
-                <p className="text-xs font-extrabold text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-1">
-                  Rincian Penerimaan & Komponen Gaji
+              <div className="space-y-2.5 sm:space-y-3">
+                <p className="text-xs font-extrabold text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-1 flex items-center justify-between">
+                  <span>Rincian Penerimaan & Komponen Gaji</span>
+                  <span className="text-[10px] font-mono font-bold text-emerald-700">Rincian Perkalian Resmi</span>
                 </p>
 
                 <table className="w-full text-xs">
@@ -1677,45 +1910,53 @@ export default function PayrollPage() {
                     <tr>
                       <td className="py-2.5">
                         <span className="font-bold">Gaji Pokok</span>
-                        {selectedPayroll.snapshot_data?.base_salary?.mode === 'daily' && (
+                        {selectedPayroll.snapshot_data?.base_salary?.mode === 'daily' ? (
                           <span className="text-[11px] text-slate-500 font-mono block">
                             ( {formatRupiah(selectedPayroll.snapshot_data.base_salary.rate)} x {selectedPayroll.snapshot_data.base_salary.days} hari )
                           </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 block">(Gaji Pokok Reguler Bulanan)</span>
                         )}
                       </td>
-                      <td className="py-2.5 text-right font-mono font-bold">
+                      <td className="py-2.5 text-right font-mono font-bold text-slate-900">
                         {formatRupiah(selectedPayroll.base_salary_calculated)}
                       </td>
                     </tr>
 
-                    {/* Uang Makan */}
+                    {/* Uang Makan - Selalu Tampilkan Perkalian yang Jelas! */}
                     <tr>
                       <td className="py-2.5">
                         <span className="font-bold">Uang Makan</span>
-                        {selectedPayroll.snapshot_data?.meal ? (
-                          <span className="text-[11px] text-emerald-700 font-mono block">
-                            ( {formatRupiah(selectedPayroll.snapshot_data.meal.rate)} x {selectedPayroll.snapshot_data.meal.days} hari )
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 block">(Berdasarkan presensi kerja)</span>
-                        )}
+                        {(() => {
+                          const days = selectedPayroll.days_present || 0;
+                          const mRate = selectedPayroll.snapshot_data?.meal?.rate || (days > 0 ? Math.round(selectedPayroll.meal_calculated / days) : 15000);
+                          const mDays = selectedPayroll.snapshot_data?.meal?.days || days;
+                          return (
+                            <span className="text-[11px] text-emerald-700 font-mono font-semibold block">
+                              ( {formatRupiah(mRate)} x {mDays} hari )
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="py-2.5 text-right font-mono font-bold text-emerald-800">
                         {formatRupiah(selectedPayroll.meal_calculated)}
                       </td>
                     </tr>
 
-                    {/* Uang Transportasi */}
+                    {/* Uang Transportasi - Selalu Tampilkan Perkalian yang Jelas! */}
                     <tr>
                       <td className="py-2.5">
                         <span className="font-bold">Uang Transportasi Operasional</span>
-                        {selectedPayroll.snapshot_data?.transport ? (
-                          <span className="text-[11px] text-blue-700 font-mono block">
-                            ( {formatRupiah(selectedPayroll.snapshot_data.transport.rate)} x {selectedPayroll.snapshot_data.transport.days} hari )
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 block">(Berdasarkan kehadiran kerja)</span>
-                        )}
+                        {(() => {
+                          const days = selectedPayroll.days_present || 0;
+                          const tRate = selectedPayroll.snapshot_data?.transport?.rate || (days > 0 ? Math.round(selectedPayroll.transport_calculated / days) : 15000);
+                          const tDays = selectedPayroll.snapshot_data?.transport?.days || days;
+                          return (
+                            <span className="text-[11px] text-blue-700 font-mono font-semibold block">
+                              ( {formatRupiah(tRate)} x {tDays} hari )
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="py-2.5 text-right font-mono font-bold text-blue-800">
                         {formatRupiah(selectedPayroll.transport_calculated)}
@@ -1774,10 +2015,10 @@ export default function PayrollPage() {
               <div className="p-4 rounded-2xl bg-gradient-to-r from-[#3d1e0f] to-amber-950 text-white flex items-center justify-between shadow-lg">
                 <div>
                   <p className="text-[11px] text-amber-300 font-bold uppercase tracking-wider">Total Gaji Bersih (Netto)</p>
-                  <p className="text-xs text-slate-300">Telah ditransfer / diserahkan tunai</p>
+                  <p className="text-xs text-slate-300">Telah disetujui & ditransfer/tunai</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xl md:text-2xl font-black font-mono text-amber-300">
+                  <p className="text-xl sm:text-2xl font-black font-mono text-amber-300">
                     {formatRupiah(selectedPayroll.net_salary)}
                   </p>
                 </div>
@@ -1791,10 +2032,10 @@ export default function PayrollPage() {
               )}
 
               {/* Signatures & Approval Area */}
-              <div className="pt-4 border-t border-slate-200 grid grid-cols-2 gap-4 text-center text-xs">
+              <div className="pt-3 border-t border-slate-200 grid grid-cols-2 gap-4 text-center text-xs">
                 <div>
                   <p className="text-slate-500 font-medium">Penerima Gaji,</p>
-                  <div className="h-12 flex items-end justify-center">
+                  <div className="h-10 flex items-end justify-center">
                     <span className="border-b border-slate-400 w-32 inline-block font-bold text-slate-900">
                       ( {selectedPayroll.user_name?.split(' ')[0] || 'Karyawan'} )
                     </span>
@@ -1803,7 +2044,7 @@ export default function PayrollPage() {
 
                 <div>
                   <p className="text-slate-500 font-medium">Owner / Management,</p>
-                  <div className="h-12 flex items-end justify-center">
+                  <div className="h-10 flex items-end justify-center">
                     <span className="border-b border-slate-400 w-32 inline-block font-bold text-slate-900">
                       ( Nasrullah )
                     </span>
@@ -1818,21 +2059,60 @@ export default function PayrollPage() {
 
             </div>
 
-            {/* Action Control Buttons (Print / Close) */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex gap-3 print:hidden">
-              <button
-                onClick={handlePrintPDF}
-                className="flex-1 py-3.5 rounded-2xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-extrabold text-xs shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all"
-              >
-                <Printer className="w-4 h-4 text-amber-400" />
-                <span>Print PDF Slip Gaji</span>
-              </button>
-              <button
-                onClick={() => setSelectedPayroll(null)}
-                className="py-3.5 px-6 rounded-2xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs"
-              >
-                Tutup
-              </button>
+            {/* Action Control Buttons (Copy WhatsApp / Send WA / Duplicate / Print / Close) */}
+            <div className="p-3.5 bg-slate-50 border-t border-slate-200 space-y-2 print:hidden">
+              
+              {/* Row 1: Copy Teks WhatsApp, Kirim WA & Duplikat */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleCopySlipText(selectedPayroll)}
+                  className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs ${
+                    copiedSlipId === selectedPayroll.id
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                  }`}
+                  title="Salin rincian slip format rapi untuk WhatsApp"
+                >
+                  {copiedSlipId === selectedPayroll.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedSlipId === selectedPayroll.id ? '✓ Teks Tersalin!' : '📋 Salin Teks (WhatsApp)'}</span>
+                </button>
+
+                <button
+                  onClick={() => handleSendWhatsApp(selectedPayroll)}
+                  className="py-2.5 px-3.5 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                  title="Buka WhatsApp langsung untuk kirim slip ini"
+                >
+                  <MessageSquare className="w-4 h-4 text-emerald-700" />
+                  <span className="hidden sm:inline">Kirim WA</span>
+                </button>
+
+                <button
+                  onClick={() => handleDuplicateSlip(selectedPayroll)}
+                  className="py-2.5 px-3.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-[#3d1e0f] font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                  title="Duplikasi data slip ini untuk membuat slip periode berikutnya atau karyawan lain"
+                >
+                  <Share2 className="w-4 h-4 text-amber-800" />
+                  <span>Duplikat Slip</span>
+                </button>
+              </div>
+
+              {/* Row 2: Print PDF & Tutup */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handlePrintPDF}
+                  className="flex-1 py-3 rounded-xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-extrabold text-xs shadow-md flex items-center justify-center gap-2 active:scale-95 transition-all"
+                >
+                  <Printer className="w-4 h-4 text-amber-400" />
+                  <span>Print PDF Slip Gaji</span>
+                </button>
+                <button
+                  onClick={() => setSelectedPayroll(null)}
+                  className="py-3 px-6 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs"
+                >
+                  Tutup
+                </button>
+              </div>
+
             </div>
 
           </div>
