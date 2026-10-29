@@ -32,6 +32,9 @@ import {
   MessageSquare,
   ExternalLink,
   Share2,
+  Save,
+  Layers,
+  ArrowRight,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 
@@ -59,6 +62,12 @@ export default function PayrollPage() {
   const [payrollSettings, setPayrollSettings] = useState<PayrollSetting[]>([]);
   const [employees, setEmployees] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Tab Utama: 'history' (Riwayat Slip Gaji) vs 'settings' (Tarif Standar Karyawan)
+  const [activeMainTab, setActiveMainTab] = useState<'history' | 'settings'>('history');
+
+  // Success notification toast
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
   // Filters
   const [selectedMonth, setSelectedMonth] = useState<string>(
@@ -151,7 +160,7 @@ export default function PayrollPage() {
     fetchPayrollData();
   }, []);
 
-  // Filtered Payroll Items
+  // Filtered Payroll Items (Riwayat Slip Gaji)
   const filteredPayrollItems = useMemo(() => {
     return payrollItems.filter((item) => {
       if (filterBranchId !== 'all' && item.branch_id && item.branch_id !== filterBranchId) {
@@ -160,6 +169,11 @@ export default function PayrollPage() {
       return true;
     });
   }, [payrollItems, filterBranchId]);
+
+  // Total summary calculation for history view
+  const totalNetSalaryAll = useMemo(() => {
+    return filteredPayrollItems.reduce((sum, item) => sum + (Number(item.net_salary) || 0), 0);
+  }, [filteredPayrollItems]);
 
   if (!isOwner && !isAdminPusat) {
     return (
@@ -253,13 +267,17 @@ export default function PayrollPage() {
 
     setEditingSettingUser(null);
     await fetchPayrollData();
+    setSaveSuccessMsg('✓ Pengaturan tarif standar gaji berhasil disimpan!');
+    setTimeout(() => setSaveSuccessMsg(null), 3500);
   };
 
   const handleDeletePayroll = async (itemId: string, name?: string) => {
-    if (window.confirm(`Hapus slip gaji untuk ${name || 'karyawan ini'}?`)) {
+    if (window.confirm(`Hapus slip gaji untuk ${name || 'karyawan ini'} dari riwayat?`)) {
       await DataService.deletePayrollItem(itemId);
       setPayrollItems((prev) => prev.filter((i) => i.id !== itemId));
       if (selectedPayroll?.id === itemId) setSelectedPayroll(null);
+      setSaveSuccessMsg(`✓ Slip gaji untuk ${name || 'karyawan'} berhasil dihapus dari riwayat.`);
+      setTimeout(() => setSaveSuccessMsg(null), 3500);
     }
   };
 
@@ -386,7 +404,6 @@ export default function PayrollPage() {
       setOvertimeMultiplier(snap.overtime.multiplier || 4);
       setOvertimeUnit(snap.overtime.unit || 'minggu');
     } else {
-      // Periksa apakah ada komponen lembur di custom_components
       const otComponent = item.custom_components?.find((c) => c.name.toLowerCase().includes('lembur'));
       if (otComponent) {
         setEnableOvertime(true);
@@ -617,7 +634,6 @@ export default function PayrollPage() {
       setCopiedSlipId(item.id);
       setTimeout(() => setCopiedSlipId(null), 2500);
     } else {
-      // Fallback
       alert('Teks slip berhasil disalin!');
     }
   };
@@ -726,11 +742,13 @@ export default function PayrollPage() {
       const saved = await DataService.savePayrollItem(newSlipPayload);
       setPayrollItems((prev) => [saved, ...prev.filter((i) => i.id !== saved.id)]);
       setShowManualSlipModal(false);
+      setActiveMainTab('history'); // Otomatis pindah ke Tab Riwayat Slip Gaji!
 
       if (andOpenPreview) {
         setSelectedPayroll(saved);
       } else {
-        alert('✓ Slip gaji manual berhasil disimpan!');
+        setSaveSuccessMsg(`✓ Slip gaji untuk ${manualEmployeeName.trim()} berhasil disimpan ke Riwayat Penggajian!`);
+        setTimeout(() => setSaveSuccessMsg(null), 4000);
       }
     } catch (err: any) {
       console.error('Failed to create manual payroll slip:', err);
@@ -747,6 +765,14 @@ export default function PayrollPage() {
   return (
     <div className="space-y-6 pb-20">
       
+      {/* Toast Notification Alert */}
+      {saveSuccessMsg && (
+        <div className="fixed top-20 right-4 z-50 bg-emerald-600 text-white font-extrabold text-xs px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-4">
+          <CheckCircle2 className="w-5 h-5 text-emerald-200 shrink-0" />
+          <span>{saveSuccessMsg}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 sm:p-6 rounded-3xl border border-slate-100 shadow-sm print:hidden">
         <div>
@@ -755,8 +781,8 @@ export default function PayrollPage() {
               <Banknote className="w-5 h-5 stroke-[2.5]" />
             </span>
             <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Laporan & Penggajian Karyawan</h1>
-              <p className="text-xs text-slate-500 mt-0.5">Pembuatan slip manual dengan perkalian (Makan, Transport, Lembur), cetak PDF & fitur copy slip</p>
+              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Laporan & Riwayat Penggajian</h1>
+              <p className="text-xs text-slate-500 mt-0.5">Pembuatan slip manual, simpan riwayat gaji, cetak PDF & fitur copy slip</p>
             </div>
           </div>
         </div>
@@ -792,261 +818,314 @@ export default function PayrollPage() {
         </div>
       </div>
 
-      {/* Quick Access Card: Buat Slip Manual Interaktif Banner */}
-      <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100/60 p-5 rounded-3xl border border-amber-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
-        <div className="flex items-start gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-[#3d1e0f] text-amber-300 flex items-center justify-center shrink-0 shadow-md">
-            <Calculator className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-              <span>Pembuatan & Copy Slip Gaji Karyawan</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500 text-slate-900 font-black uppercase tracking-wider">
-                Fitur Baru
-              </span>
-            </h3>
-            <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-              Buat slip dengan perkalian <strong>Makan (Rp 15.000 x 24 hari)</strong>, <strong>Transport (Rp 15.000 x 24 hari)</strong>, <strong>Lembur</strong>, serta salin teks slip ke WhatsApp atau duplikat slip lama dalam 1-klik!
-            </p>
-          </div>
+      {/* Main Mode Tab Switcher: Riwayat Slip Gaji vs Pengaturan Tarif Standar */}
+      <div className="flex items-center justify-between gap-3 bg-white p-2 rounded-2xl border border-slate-100 shadow-xs print:hidden">
+        <div className="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
+          <button
+            onClick={() => setActiveMainTab('history')}
+            className={`flex-1 sm:flex-none py-2 px-4 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 ${
+              activeMainTab === 'history'
+                ? 'bg-white text-[#3d1e0f] shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Receipt className="w-4 h-4 text-amber-700" />
+            <span>📋 Riwayat Slip Gaji Tersimpan ({filteredPayrollItems.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveMainTab('settings')}
+            className={`flex-1 sm:flex-none py-2 px-4 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 ${
+              activeMainTab === 'settings'
+                ? 'bg-white text-[#3d1e0f] shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Settings className="w-4 h-4 text-slate-600" />
+            <span>⚙️ Pengaturan Tarif Standar ({employees.length})</span>
+          </button>
         </div>
-        <button
-          onClick={() => handleOpenManualSlipModal()}
-          className="px-5 py-3 rounded-2xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-extrabold text-xs shadow-md whitespace-nowrap active:scale-95 transition-all flex items-center justify-center gap-2"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>Buka Form Slip Manual</span>
-        </button>
+
+        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500 font-bold pr-2">
+          <span>Total Akumulasi Gaji:</span>
+          <span className="font-mono text-emerald-700 font-black text-sm">
+            {formatRupiah(totalNetSalaryAll)}
+          </span>
+        </div>
       </div>
 
-      {/* Section 1: Employee Salary Components Settings */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4 print:hidden">
-        <div className="flex items-center justify-between">
-          <h2 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-            <Settings className="w-4 h-4 text-amber-600" />
-            <span>Pengaturan Tarif Standar Karyawan (Gaji Pokok, Transport, Makan & Poin)</span>
-          </h2>
-          <span className="text-xs text-slate-400">Diatur per karyawan</span>
-        </div>
+      {/* ======================================================== */}
+      {/* TAB 1: RIWAYAT SLIP GAJI TERSIMPAN (PRIMARY VIEW) */}
+      {/* ======================================================== */}
+      {activeMainTab === 'history' && (
+        <div className="space-y-4">
+          
+          {/* Quick Summary KPIs */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 print:hidden">
+            <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 text-white p-4 rounded-2xl shadow-xs">
+              <span className="text-[10px] font-bold text-emerald-100 uppercase tracking-wider block">Total Gaji Bersih (Netto)</span>
+              <span className="text-xl sm:text-2xl font-black font-mono mt-1 block">{formatRupiah(totalNetSalaryAll)}</span>
+              <span className="text-[11px] text-emerald-200 mt-1 block">Tercatat di riwayat sistem</span>
+            </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {employees.map((emp) => {
-            const setting = payrollSettings.find((s) => s.user_id === emp.id);
-            return (
-              <div
-                key={emp.id}
-                className="p-4 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-between hover:border-slate-300 transition-colors"
+            <div className="bg-gradient-to-br from-[#3d1e0f] to-amber-950 text-white p-4 rounded-2xl shadow-xs">
+              <span className="text-[10px] font-bold text-amber-200 uppercase tracking-wider block">Jumlah Slip Gaji Tersimpan</span>
+              <span className="text-xl sm:text-2xl font-black font-mono mt-1 block">{filteredPayrollItems.length} Dokumen</span>
+              <span className="text-[11px] text-amber-300 mt-1 block">Bisa dicetak & di-copy ke WA</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Buat Slip Gaji Baru</span>
+                <p className="text-xs text-slate-600 font-semibold mt-0.5">Dengan perkalian Makan, Transport & Lembur</p>
+              </div>
+              <button
+                onClick={() => handleOpenManualSlipModal()}
+                className="mt-2 w-full py-2 bg-amber-100 hover:bg-amber-200 text-[#3d1e0f] font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors"
               >
-                <div>
-                  <p className="text-xs font-bold text-slate-900">{emp.full_name}</p>
-                  <p className="text-[11px] text-slate-500 font-medium capitalize">{emp.role.replace('_', ' ')}</p>
-                  <div className="flex flex-wrap gap-2 text-[10px] font-mono font-semibold text-slate-700 mt-1">
-                    <span>Pokok: {formatRupiah(setting?.base_salary || 0)}</span>
-                    <span>Transport: {formatRupiah(setting?.transport_allowance || 15000)}</span>
-                    <span>Makan: {formatRupiah(setting?.meal_allowance || 15000)}</span>
-                    {setting?.custom_components && setting.custom_components.length > 0 && (
-                      <span className="text-emerald-700 font-bold">
-                        +{setting.custom_components.length} Poin Bonus
-                      </span>
-                    )}
-                  </div>
-                </div>
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>+ Buat Slip Manual Baru</span>
+              </button>
+            </div>
+          </div>
 
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => handleOpenManualSlipModal(emp)}
-                    className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-black text-amber-300 font-bold text-xs transition-colors shadow-xs"
-                    title="Buat slip manual untuk karyawan ini"
-                  >
-                    + Buat Slip
-                  </button>
-                  <button
-                    onClick={() => handleOpenSettingModal(emp)}
-                    className="px-3 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs hover:bg-amber-600 transition-colors shadow-xs"
-                    title="Atur tarif dasar"
-                  >
-                    Atur
-                  </button>
+          {/* Table / List of Saved Slips */}
+          <div id="payroll-report-area" className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden p-5 sm:p-6 space-y-4">
+            
+            {/* Printable Header */}
+            <div className="border-b border-dashed border-slate-300 pb-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-black border border-amber-500/40 p-1 shadow-md flex items-center justify-center font-bold text-white text-xl overflow-hidden shrink-0">
+                  <img
+                    src={settings.logo_url || '/logo.jpg'}
+                    alt="Logo"
+                    className="w-full h-full object-contain rounded-xl"
+                    onError={(e) => {
+                      e.currentTarget.src = '/logo.jpg';
+                    }}
+                  />
+                </div>
+                <div>
+                  <h2 className="font-extrabold text-base text-slate-900 uppercase">{settings.app_name}</h2>
+                  <p className="text-xs text-slate-500">{settings.brand_owner}</p>
+                  <p className="text-xs font-bold text-[#3d1e0f] mt-0.5">DAFTAR RIWAYAT SLIP GAJI KARYAWAN</p>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Section 2: Daftar Slip Gaji & Rekapitulasi */}
-      <div id="payroll-report-area" className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden p-6 space-y-4">
-        
-        {/* Printable Header */}
-        <div className="border-b border-dashed border-slate-300 pb-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-black border border-amber-500/40 p-1 shadow-md flex items-center justify-center font-bold text-white text-xl overflow-hidden">
-              <img
-                src={settings.logo_url || '/logo.jpg'}
-                alt="Logo"
-                className="w-full h-full object-contain rounded-xl"
-                onError={(e) => {
-                  e.currentTarget.src = '/logo.jpg';
-                }}
-              />
+              <div className="text-right text-xs">
+                <p className="font-bold text-slate-800">Periode: {selectedMonth}</p>
+                <p className="text-[10px] text-slate-400">Total: {filteredPayrollItems.length} Slip Tersimpan</p>
+              </div>
             </div>
-            <div>
-              <h2 className="font-extrabold text-base text-slate-900 uppercase">{settings.app_name}</h2>
-              <p className="text-xs text-slate-500">{settings.brand_owner}</p>
-              <p className="text-xs font-bold text-[#3d1e0f] mt-0.5">REKAPITULASI LAPORAN PENGGAJIAN KARYAWAN</p>
-            </div>
-          </div>
-          <div className="text-right text-xs">
-            <p className="font-bold text-slate-800">Periode: {selectedMonth}</p>
-            <p className="text-[10px] text-slate-400">Total: {filteredPayrollItems.length} Slip Gaji</p>
-          </div>
-        </div>
 
-        {loading ? (
-          <div className="py-12 text-center text-slate-400 text-xs">Memuat data penggajian...</div>
-        ) : filteredPayrollItems.length === 0 ? (
-          <div className="py-12 text-center space-y-3">
-            <Receipt className="w-12 h-12 text-slate-300 mx-auto" />
-            <p className="text-sm font-bold text-slate-700">Belum ada slip gaji yang diproses</p>
-            <p className="text-xs text-slate-400">Gunakan tombol "+ Buat Slip Gaji Manual" di atas untuk membuat slip dengan perkalian makan, transport, dan lembur.</p>
-            <button
-              onClick={() => handleOpenManualSlipModal()}
-              className="px-4 py-2 bg-[#3d1e0f] text-amber-100 rounded-xl text-xs font-bold hover:bg-amber-950 transition-colors shadow-sm"
-            >
-              + Buat Slip Gaji Sekarang
-            </button>
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {filteredPayrollItems.map((item) => {
-              const isManualSlip = Boolean(item.snapshot_data?.is_manual);
-              const customBonusSum = (item.custom_components || [])
-                .filter((c) => c.type === 'bonus')
-                .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-              const customDeductionSum = (item.custom_components || [])
-                .filter((c) => c.type === 'deduction')
-                .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-
-              const calculatedNet = item.net_salary || (item.base_salary_calculated + item.transport_calculated + item.meal_calculated + customBonusSum - customDeductionSum);
-
-              return (
-                <div
-                  key={item.id}
-                  className="py-4 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+            {loading ? (
+              <div className="py-12 text-center text-slate-400 text-xs">Memuat data riwayat slip gaji...</div>
+            ) : filteredPayrollItems.length === 0 ? (
+              <div className="py-12 text-center space-y-3">
+                <Receipt className="w-12 h-12 text-slate-300 mx-auto" />
+                <p className="text-sm font-bold text-slate-700">Belum ada slip gaji yang disimpan di riwayat</p>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  Semua slip gaji yang dibuat melalui tombol "+ Buat Slip Gaji Manual" otomatis tersimpan di sini.
+                </p>
+                <button
+                  onClick={() => handleOpenManualSlipModal()}
+                  className="px-4 py-2.5 bg-[#3d1e0f] text-amber-100 rounded-xl text-xs font-bold hover:bg-amber-950 transition-colors shadow-sm"
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-sm text-slate-900">{item.user_name}</span>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          item.status === 'approved'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        {item.status === 'approved' ? '✓ Disetujui' : 'Draft'}
-                      </span>
-                      {isManualSlip && (
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
-                          Perkalian Manual
-                        </span>
-                      )}
-                      <span className="text-[11px] text-slate-400">
-                        ({item.branch_name || 'Cabang'})
-                      </span>
-                    </div>
+                  + Buat Slip Gaji Sekarang
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {filteredPayrollItems.map((item) => {
+                  const isManualSlip = Boolean(item.snapshot_data?.is_manual);
+                  const customBonusSum = (item.custom_components || [])
+                    .filter((c) => c.type === 'bonus')
+                    .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+                  const customDeductionSum = (item.custom_components || [])
+                    .filter((c) => c.type === 'deduction')
+                    .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
 
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 font-mono">
-                      <span>Presensi: <strong>{item.days_present} Hari</strong></span>
-                      <span>Pokok: {formatRupiah(item.base_salary_calculated)}</span>
-                      <span>Makan: {formatRupiah(item.meal_calculated)}</span>
-                      <span>Transport: {formatRupiah(item.transport_calculated)}</span>
-                      {item.bonus_amount > 0 && (
-                        <span className="text-emerald-700 font-bold">
-                          +Lembur/Bonus: {formatRupiah(item.bonus_amount)}
-                        </span>
-                      )}
-                      {item.total_deductions > 0 && (
-                        <span className="text-rose-700 font-bold">
-                          -Potongan: {formatRupiah(item.total_deductions)}
-                        </span>
-                      )}
-                    </div>
+                  const calculatedNet = item.net_salary || (item.base_salary_calculated + item.transport_calculated + item.meal_calculated + customBonusSum - customDeductionSum);
 
-                    {item.custom_components && item.custom_components.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-1">
-                        {item.custom_components.map((c, idx) => (
+                  return (
+                    <div
+                      key={item.id}
+                      className="py-4 hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-sm text-slate-900">{item.user_name}</span>
                           <span
-                            key={c.id || idx}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                              c.type === 'bonus'
-                                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                                : 'bg-rose-50 border-rose-200 text-rose-800'
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              item.status === 'approved'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
                             }`}
                           >
-                            {c.type === 'bonus' ? '+' : '-'} {c.name}: {formatRupiah(c.amount)}
+                            {item.status === 'approved' ? '✓ Disetujui' : 'Draft'}
                           </span>
-                        ))}
+                          {isManualSlip && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                              Perkalian Manual
+                            </span>
+                          )}
+                          <span className="text-[11px] text-slate-400">
+                            ({item.branch_name || 'Cabang'})
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 font-mono">
+                          <span>Presensi: <strong>{item.days_present} Hari</strong></span>
+                          <span>Pokok: {formatRupiah(item.base_salary_calculated)}</span>
+                          <span>Makan: {formatRupiah(item.meal_calculated)}</span>
+                          <span>Transport: {formatRupiah(item.transport_calculated)}</span>
+                          {item.bonus_amount > 0 && (
+                            <span className="text-emerald-700 font-bold">
+                              +Lembur/Bonus: {formatRupiah(item.bonus_amount)}
+                            </span>
+                          )}
+                          {item.total_deductions > 0 && (
+                            <span className="text-rose-700 font-bold">
+                              -Potongan: {formatRupiah(item.total_deductions)}
+                            </span>
+                          )}
+                        </div>
+
+                        {item.custom_components && item.custom_components.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {item.custom_components.map((c, idx) => (
+                              <span
+                                key={c.id || idx}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                  c.type === 'bonus'
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                                }`}
+                              >
+                                {c.type === 'bonus' ? '+' : '-'} {c.name}: {formatRupiah(c.amount)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
+
+                      <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                        <div className="text-left sm:text-right">
+                          <p className="text-[10px] text-slate-400 font-semibold uppercase">GAJI BERSIH (NETTO)</p>
+                          <p className="text-base font-black text-emerald-700 font-mono">{formatRupiah(calculatedNet)}</p>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 print:hidden">
+                          {/* Tombol Copy Teks Slip Cepat (WhatsApp) */}
+                          <button
+                            onClick={() => handleCopySlipText(item)}
+                            className={`p-2 rounded-xl font-bold text-xs flex items-center gap-1 transition-all ${
+                              copiedSlipId === item.id
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                            }`}
+                            title="Salin Teks Slip Gaji (Format WhatsApp)"
+                          >
+                            {copiedSlipId === item.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                            <span className="hidden md:inline">{copiedSlipId === item.id ? 'Tersalin' : 'Copy WA'}</span>
+                          </button>
+
+                          {/* Tombol Duplikasi Slip */}
+                          <button
+                            onClick={() => handleDuplicateSlip(item)}
+                            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors"
+                            title="Duplikat data slip ini untuk membuat slip baru"
+                          >
+                            <Share2 className="w-4 h-4 text-slate-600" />
+                            <span className="hidden md:inline">Duplikat</span>
+                          </button>
+
+                          {/* Tombol Lihat & Cetak Slip */}
+                          <button
+                            onClick={() => setSelectedPayroll(item)}
+                            className="px-3 py-2 rounded-xl bg-amber-100 text-[#3d1e0f] font-bold text-xs hover:bg-amber-200 flex items-center gap-1.5 transition-colors"
+                            title="Lihat & Cetak Slip Gaji Resmi"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-amber-800" />
+                            <span>Cetak</span>
+                          </button>
+
+                          {/* Tombol Hapus */}
+                          <button
+                            onClick={() => handleDeletePayroll(item.id, item.user_name)}
+                            className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 transition-colors"
+                            title="Hapus slip gaji ini dari riwayat"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 2: PENGATURAN TARIF STANDAR KARYAWAN */}
+      {/* ======================================================== */}
+      {activeMainTab === 'settings' && (
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4 print:hidden">
+          <div className="flex items-center justify-between">
+            <h2 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+              <Settings className="w-4 h-4 text-amber-600" />
+              <span>Pengaturan Tarif Standar Gaji Karyawan</span>
+            </h2>
+            <span className="text-xs text-slate-400">Tarif default saat membuat slip</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {employees.map((emp) => {
+              const setting = payrollSettings.find((s) => s.user_id === emp.id);
+              return (
+                <div
+                  key={emp.id}
+                  className="p-4 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-between hover:border-slate-300 transition-colors"
+                >
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">{emp.full_name}</p>
+                    <p className="text-[11px] text-slate-500 font-medium capitalize">{emp.role.replace('_', ' ')}</p>
+                    <div className="flex flex-wrap gap-2 text-[10px] font-mono font-semibold text-slate-700 mt-1">
+                      <span>Pokok: {formatRupiah(setting?.base_salary || 0)}</span>
+                      <span>Transport: {formatRupiah(setting?.transport_allowance || 15000)}</span>
+                      <span>Makan: {formatRupiah(setting?.meal_allowance || 15000)}</span>
+                      {setting?.custom_components && setting.custom_components.length > 0 && (
+                        <span className="text-emerald-700 font-bold">
+                          +{setting.custom_components.length} Poin Bonus
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="flex items-center justify-between sm:justify-end gap-3">
-                    <div className="text-left sm:text-right">
-                      <p className="text-[10px] text-slate-400 font-semibold uppercase">GAJI BERSIH (NETTO)</p>
-                      <p className="text-base font-black text-emerald-700 font-mono">{formatRupiah(calculatedNet)}</p>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 print:hidden">
-                      {/* Tombol Copy Teks Slip Cepat */}
-                      <button
-                        onClick={() => handleCopySlipText(item)}
-                        className={`p-2 rounded-xl font-bold text-xs flex items-center gap-1 transition-all ${
-                          copiedSlipId === item.id
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                        }`}
-                        title="Salin Teks Slip Gaji (Format WhatsApp)"
-                      >
-                        {copiedSlipId === item.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                        <span className="hidden md:inline">{copiedSlipId === item.id ? 'Tersalin' : 'Copy'}</span>
-                      </button>
-
-                      {/* Tombol Duplikasi Slip */}
-                      <button
-                        onClick={() => handleDuplicateSlip(item)}
-                        className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors"
-                        title="Duplikat data slip ini untuk buat slip baru"
-                      >
-                        <Share2 className="w-4 h-4 text-slate-600" />
-                        <span className="hidden md:inline">Duplikat</span>
-                      </button>
-
-                      {/* Tombol Lihat & Cetak Slip */}
-                      <button
-                        onClick={() => setSelectedPayroll(item)}
-                        className="px-3 py-2 rounded-xl bg-amber-100 text-[#3d1e0f] font-bold text-xs hover:bg-amber-200 flex items-center gap-1.5 transition-colors"
-                        title="Lihat & Cetak Slip Gaji Resmi"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-amber-800" />
-                        <span>Cetak</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleDeletePayroll(item.id, item.user_name)}
-                        className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 transition-colors"
-                        title="Hapus slip gaji ini"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleOpenManualSlipModal(emp)}
+                      className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-black text-amber-300 font-bold text-xs transition-colors shadow-xs"
+                      title="Buat slip manual untuk karyawan ini"
+                    >
+                      + Buat Slip
+                    </button>
+                    <button
+                      onClick={() => handleOpenSettingModal(emp)}
+                      className="px-3 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs hover:bg-amber-600 transition-colors shadow-xs"
+                      title="Atur tarif dasar"
+                    >
+                      Atur
+                    </button>
                   </div>
                 </div>
               );
             })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* MODAL: FORM PEMBUATAN SLIP GAJI MANUAL DENGAN PERKALIAN */}
@@ -1640,8 +1719,16 @@ export default function PayrollPage() {
                 </div>
               </div>
 
-              {/* Submit Buttons */}
-              <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+              {/* Helper text explaining that saving stores permanently in history */}
+              <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200/80 text-[11px] text-[#3d1e0f] flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  Slip ini akan otomatis tersimpan permanen di <strong>Riwayat Slip Gaji</strong> dan dapat dicetak, di-copy ke WhatsApp, atau diedit kapan saja.
+                </span>
+              </div>
+
+              {/* Submit Buttons with Explicit Save to History Options */}
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => setShowManualSlipModal(false)}
@@ -1649,13 +1736,26 @@ export default function PayrollPage() {
                 >
                   Batal
                 </button>
+
+                {/* Tombol Simpan Riwayat Saja */}
+                <button
+                  type="button"
+                  disabled={isSubmittingManual}
+                  onClick={(e) => handleSubmitManualSlip(e, false)}
+                  className="flex-1 py-3 px-4 rounded-xl bg-slate-900 hover:bg-black text-amber-300 font-extrabold text-xs shadow-md disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <Save className="w-4 h-4 text-amber-400" />
+                  <span>{isSubmittingManual ? 'Menyimpan...' : '💾 Simpan Riwayat Gaji'}</span>
+                </button>
+
+                {/* Tombol Simpan & Buka Slip Gaji */}
                 <button
                   type="submit"
                   disabled={isSubmittingManual}
-                  className="flex-1 py-3 px-5 rounded-xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-extrabold text-xs shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 px-4 rounded-xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-extrabold text-xs shadow-md disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all"
                 >
                   <Eye className="w-4 h-4 text-amber-300" />
-                  <span>{isSubmittingManual ? 'Menyimpan...' : 'Simpan & Lihat Slip Gaji'}</span>
+                  <span>{isSubmittingManual ? 'Menyimpan...' : '👁️ Simpan & Cetak Slip'}</span>
                 </button>
               </div>
 
@@ -1981,7 +2081,6 @@ export default function PayrollPage() {
                     {/* Custom Components / Bonus Tambahan */}
                     {selectedPayroll.custom_components
                       ?.filter((c) => {
-                        // Jangan duplikasi lembur jika sudah dirender di atas
                         if (selectedPayroll.snapshot_data?.overtime && c.name.includes(selectedPayroll.snapshot_data.overtime.title)) {
                           return false;
                         }
