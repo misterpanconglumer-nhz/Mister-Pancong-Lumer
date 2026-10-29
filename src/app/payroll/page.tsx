@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { PayrollItem, PayrollSetting, UserProfile, CustomPayrollComponent } from '@/types';
+import { PayrollItem, PayrollSetting, UserProfile, CustomPayrollComponent, AttendanceRecord } from '@/types';
 import { DataService } from '@/lib/services/dataService';
 import { formatRupiah, formatDate } from '@/lib/utils/formatters';
+import { toBlob, toPng } from 'html-to-image';
 import {
   Banknote,
   Settings,
@@ -28,15 +29,89 @@ import {
   Sparkles,
   Receipt,
   Store,
-  Copy,
-  MessageSquare,
-  ExternalLink,
+  Camera,
   Share2,
   Save,
   Layers,
   ArrowRight,
+  Zap,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
+
+const MONTH_NAMES_ID = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+
+function formatMonthOnly(dateOrPeriod?: string): string {
+  if (!dateOrPeriod) return '';
+  const match = dateOrPeriod.match(/(\d{4})-(\d{2})/);
+  if (match) {
+    const y = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    if (m >= 1 && m <= 12) {
+      return `${MONTH_NAMES_ID[m - 1]} ${y}`;
+    }
+  }
+  for (const mName of MONTH_NAMES_ID) {
+    if (dateOrPeriod.toLowerCase().includes(mName.toLowerCase())) {
+      const yMatch = dateOrPeriod.match(/\b(20\d\d)\b/);
+      return yMatch ? `${mName} ${yMatch[1]}` : mName;
+    }
+  }
+  return dateOrPeriod.replace(/^Periode\s*:?\s*/i, '').trim();
+}
+
+function getPayrollCutoffRange(yearMonth: string, cycle: 'curr_to_next' | 'prev_to_curr' = 'curr_to_next') {
+  const [yStr, mStr] = yearMonth.split('-');
+  const y = parseInt(yStr, 10) || new Date().getFullYear();
+  const m = parseInt(mStr, 10) || (new Date().getMonth() + 1);
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  if (cycle === 'curr_to_next') {
+    // 26 bulan sekarang s/d 25 bulan besok (sesuai permintaan user)
+    const nextM = m === 12 ? 1 : m + 1;
+    const nextY = m === 12 ? y + 1 : y;
+    const startDate = `${y}-${pad(m)}-26`;
+    const endDate = `${nextY}-${pad(nextM)}-25`;
+    const monthLabel = `${MONTH_NAMES_ID[m - 1]} ${y}`;
+    const rangeText = `26 ${MONTH_NAMES_ID[m - 1].slice(0, 3)} - 25 ${MONTH_NAMES_ID[nextM - 1].slice(0, 3)} ${nextY}`;
+    return { startDate, endDate, monthLabel, rangeText, cycle };
+  } else {
+    // 26 bulan lalu s/d 25 bulan sekarang
+    const prevM = m === 1 ? 12 : m - 1;
+    const prevY = m === 1 ? y - 1 : y;
+    const startDate = `${prevY}-${pad(prevM)}-26`;
+    const endDate = `${y}-${pad(m)}-25`;
+    const monthLabel = `${MONTH_NAMES_ID[m - 1]} ${y}`;
+    const rangeText = `26 ${MONTH_NAMES_ID[prevM - 1].slice(0, 3)} - 25 ${MONTH_NAMES_ID[m - 1].slice(0, 3)} ${y}`;
+    return { startDate, endDate, monthLabel, rangeText, cycle };
+  }
+}
+
+function countAttendanceDays(
+  empId: string,
+  empName: string,
+  startDate: string,
+  endDate: string,
+  attendanceRecords: AttendanceRecord[]
+): { count: number; matchedRecords: AttendanceRecord[] } {
+  const normName = (empName || '').toLowerCase().trim();
+  const matched = attendanceRecords.filter((att) => {
+    if (!att.date) return false;
+    const isUser = att.user_id === empId || (att.user_name && att.user_name.toLowerCase().trim() === normName);
+    if (!isUser) return false;
+    const inRange = att.date >= startDate && att.date <= endDate;
+    if (!inRange) return false;
+    const isHadir = att.status === 'hadir' || Boolean(att.clock_in);
+    return isHadir;
+  });
+
+  return {
+    count: matched.length,
+    matchedRecords: matched,
+  };
+}
 
 interface ManualBonusItem {
   id: string;
@@ -61,6 +136,7 @@ export default function PayrollPage() {
   const [payrollItems, setPayrollItems] = useState<PayrollItem[]>([]);
   const [payrollSettings, setPayrollSettings] = useState<PayrollSetting[]>([]);
   const [employees, setEmployees] = useState<UserProfile[]>([]);
+  const [attendanceList, setAttendanceList] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Tab Utama: 'history' (Riwayat Slip Gaji) vs 'settings' (Tarif Standar Karyawan)
@@ -69,16 +145,23 @@ export default function PayrollPage() {
   // Success notification toast
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
-  // Filters
+  // Filters & Cut-off Periode (Default: 26 bulan sekarang s/d 25 bulan besok)
   const [selectedMonth, setSelectedMonth] = useState<string>(
     new Date().toISOString().slice(0, 7)
   );
+  const [cutoffCycle, setCutoffCycle] = useState<'curr_to_next' | 'prev_to_curr'>('curr_to_next');
   const [filterBranchId, setFilterBranchId] = useState<string>('all');
+
+  // Perhitungan rentang cutoff aktif
+  const currentCutoff = useMemo(() => {
+    return getPayrollCutoffRange(selectedMonth, cutoffCycle);
+  }, [selectedMonth, cutoffCycle]);
 
   // Selected item modal state for pay slip preview
   const [selectedPayroll, setSelectedPayroll] = useState<PayrollItem | null>(null);
   const [editingSettingUser, setEditingSettingUser] = useState<PayrollSetting | null>(null);
-  const [copiedSlipId, setCopiedSlipId] = useState<string | null>(null);
+  const [isCopyingImage, setIsCopyingImage] = useState<boolean>(false);
+  const [copyImageSuccess, setCopyImageSuccess] = useState<boolean>(false);
 
   // Form state for updating employee payroll settings
   const [baseSalary, setBaseSalary] = useState<string>('1500000');
@@ -141,14 +224,16 @@ export default function PayrollPage() {
   const fetchPayrollData = async () => {
     setLoading(true);
     try {
-      const [items, settingsList, userList] = await Promise.all([
+      const [items, settingsList, userList, allAttendance] = await Promise.all([
         DataService.getPayrollItems(),
         DataService.getPayrollSettings(),
         DataService.getUsers(),
+        DataService.getAttendance(),
       ]);
       setPayrollItems(items);
       setPayrollSettings(settingsList);
       setEmployees(userList.filter((u) => u.role === 'penjual' || u.role === 'admin_cabang' || u.role === 'owner'));
+      setAttendanceList(allAttendance || []);
     } catch (err) {
       console.error('Error fetching payroll:', err);
     } finally {
@@ -286,14 +371,17 @@ export default function PayrollPage() {
   // ==========================================
   const handleOpenManualSlipModal = (prefillEmp?: UserProfile) => {
     const targetEmp = prefillEmp || employees[0];
-    const initialDays = 24;
+    const attResult = targetEmp
+      ? countAttendanceDays(targetEmp.id, targetEmp.full_name, currentCutoff.startDate, currentCutoff.endDate, attendanceList)
+      : { count: 0 };
+    const initialDays = attResult.count > 0 ? attResult.count : 24;
 
     setManualEmployeeType('existing');
     setManualEmployeeId(targetEmp?.id || 'emp-1');
     setManualEmployeeName(targetEmp?.full_name || 'Karyawan');
     setManualBranchId(activeBranch?.id || branches[0]?.id || 'd9ec11ac-c42f-4904-b932-20abbe83e89e');
     setManualBranchName(activeBranch?.name || branches[0]?.name || 'Cidodol');
-    setManualPeriodLabel(`Periode ${selectedMonth}`);
+    setManualPeriodLabel(currentCutoff.monthLabel); // Format Bulan Saja (e.g. Oktober 2026)
     setManualDaysPresent(initialDays);
 
     // Look up existing payroll setting if available
@@ -368,7 +456,7 @@ export default function PayrollPage() {
     setManualEmployeeName(item.user_name || 'Karyawan');
     setManualBranchId(item.branch_id || activeBranch?.id || branches[0]?.id || '');
     setManualBranchName(item.branch_name || activeBranch?.name || branches[0]?.name || 'Cidodol');
-    setManualPeriodLabel(snap?.period_label || `Periode ${selectedMonth}`);
+    setManualPeriodLabel(snap?.period_label || currentCutoff.monthLabel);
     setManualDaysPresent(days);
 
     // Gaji Pokok
@@ -470,12 +558,18 @@ export default function PayrollPage() {
     const emp = employees.find((e) => e.id === empId);
     if (emp) {
       setManualEmployeeName(emp.full_name);
+      
+      // Otomatis hitung hari hadir dari absensi untuk karyawan ini
+      const attResult = countAttendanceDays(emp.id, emp.full_name, currentCutoff.startDate, currentCutoff.endDate, attendanceList);
+      const daysToUse = attResult.count > 0 ? attResult.count : manualDaysPresent;
+      handleSyncDays(daysToUse);
+
       const setting = payrollSettings.find((s) => s.user_id === emp.id);
       if (setting) {
         if (setting.base_salary_type === 'per_day') {
           setBaseMode('daily');
           setBaseDailyRate(setting.base_salary);
-          setBaseDays(manualDaysPresent);
+          setBaseDays(daysToUse);
         } else {
           setBaseMode('fixed');
           setBaseFixedAmount(setting.base_salary);
@@ -483,6 +577,21 @@ export default function PayrollPage() {
         if (setting.meal_allowance) setMealRate(setting.meal_allowance);
         if (setting.transport_allowance) setTransportRate(setting.transport_allowance);
       }
+    }
+  };
+
+  // Sinkronisasi manual dari database absensi
+  const handleSyncAttendanceForManual = (targetEmpId?: string, targetEmpName?: string) => {
+    const eId = targetEmpId || manualEmployeeId;
+    const eName = targetEmpName || manualEmployeeName;
+    const attResult = countAttendanceDays(eId, eName, currentCutoff.startDate, currentCutoff.endDate, attendanceList);
+
+    if (attResult.count > 0) {
+      handleSyncDays(attResult.count);
+      setSaveSuccessMsg(`✓ Berhasil memuat data absensi: ${attResult.count} hari hadir (${currentCutoff.startDate} s/d ${currentCutoff.endDate})`);
+      setTimeout(() => setSaveSuccessMsg(null), 3500);
+    } else {
+      alert(`Belum ditemukan rekaman absensi terverifikasi untuk karyawan "${eName}" pada rentang cut-off: ${currentCutoff.startDate} s/d ${currentCutoff.endDate}.\n\nJumlah kehadiran tetap menggunakan isian manual (${manualDaysPresent} hari).`);
     }
   };
 
@@ -549,99 +658,177 @@ export default function PayrollPage() {
   };
 
   // ==========================================
-  // FITUR SALIN TEKS SLIP KE CLIPBOARD (WHATSAPP FORMAT)
+  // FITUR 1 TOMBOL COPY GAMBAR SLIP GAJI KE CLIPBOARD (UNTUK WHATSAPP)
   // ==========================================
-  const generateSlipWhatsAppText = (item: PayrollItem): string => {
-    const snap = item.snapshot_data;
-    const days = item.days_present || 0;
-    const mealRateDisplay = snap?.meal?.rate || (days > 0 ? Math.round(item.meal_calculated / days) : 15000);
-    const mealDaysDisplay = snap?.meal?.days || days;
-    const transportRateDisplay = snap?.transport?.rate || (days > 0 ? Math.round(item.transport_calculated / days) : 15000);
-    const transportDaysDisplay = snap?.transport?.days || days;
-
-    let text = `🍞 *SLIP GAJI RESMI - ${settings.app_name.toUpperCase()}* 🍞\n`;
-    text += `_${settings.brand_owner}_\n`;
-    text += `================================\n`;
-    text += `👤 *Nama Karyawan:* ${item.user_name}\n`;
-    text += `🏪 *Cabang Penugasan:* ${item.branch_name || 'Cidodol'}\n`;
-    text += `📅 *Periode:* ${snap?.period_label || selectedMonth}\n`;
-    text += `⏱️ *Total Kehadiran:* ${days} Hari Kerja\n`;
-    text += `✅ *Status Dokumen:* ${item.status === 'approved' ? 'Disetujui & Resmi' : 'Draft'}\n`;
-    text += `--------------------------------\n`;
-    text += `💰 *RINCIAN PENERIMAAN GAJI:*\n`;
-
-    // Gaji Pokok
-    if (snap?.base_salary?.mode === 'daily') {
-      text += `• Gaji Pokok: ${formatRupiah(item.base_salary_calculated)} (${formatRupiah(snap.base_salary.rate)} x ${snap.base_salary.days} hari)\n`;
-    } else {
-      text += `• Gaji Pokok: ${formatRupiah(item.base_salary_calculated)}\n`;
+  const handleCopySlipImage = async () => {
+    const node = document.getElementById('receipt-print-area');
+    if (!node) {
+      alert('Area slip gaji tidak ditemukan.');
+      return;
     }
 
-    // Uang Makan
-    if (item.meal_calculated > 0) {
-      text += `• Uang Makan: ${formatRupiah(item.meal_calculated)} (${formatRupiah(mealRateDisplay)} x ${mealDaysDisplay} hari)\n`;
-    }
-
-    // Uang Transport
-    if (item.transport_calculated > 0) {
-      text += `• Uang Transport: ${formatRupiah(item.transport_calculated)} (${formatRupiah(transportRateDisplay)} x ${transportDaysDisplay} hari)\n`;
-    }
-
-    // Lembur
-    if (snap?.overtime && snap.overtime.total > 0) {
-      text += `• ${snap.overtime.title || 'Lembur Mingguan'}: +${formatRupiah(snap.overtime.total)} (${formatRupiah(snap.overtime.rate)} x ${snap.overtime.multiplier} ${snap.overtime.unit})\n`;
-    }
-
-    // Bonus Lainnya
-    const bonuses = (item.custom_components || []).filter((c) => {
-      if (c.type !== 'bonus') return false;
-      if (snap?.overtime && c.name.includes(snap.overtime.title)) return false;
-      return true;
-    });
-    bonuses.forEach((b) => {
-      text += `• ${b.name}: +${formatRupiah(b.amount)}\n`;
-    });
-
-    // Potongan
-    const deductions = (item.custom_components || []).filter((c) => c.type === 'deduction');
-    if (deductions.length > 0 || item.total_deductions > 0) {
-      text += `--------------------------------\n`;
-      text += `🔻 *POTONGAN GAJI:*\n`;
-      deductions.forEach((d) => {
-        text += `• ${d.name}: -${formatRupiah(d.amount)}\n`;
+    setIsCopyingImage(true);
+    try {
+      // 1. Render element into PNG blob with 2x pixel ratio for crystal clear text
+      const blob = await toBlob(node, {
+        quality: 0.98,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        cacheBust: true,
       });
+
+      if (!blob) throw new Error('Gagal merender gambar slip');
+
+      let copiedToClipboard = false;
+
+      // 2. Direct Clipboard Item writing (works on Chrome, Edge, Safari desktop & WA Web)
+      if (typeof navigator !== 'undefined' && navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+        try {
+          const item = new ClipboardItem({ 'image/png': blob });
+          await navigator.clipboard.write([item]);
+          copiedToClipboard = true;
+        } catch (clipErr) {
+          console.warn('Direct ClipboardItem write error:', clipErr);
+        }
+      }
+
+      if (copiedToClipboard) {
+        setCopyImageSuccess(true);
+        setSaveSuccessMsg('✓ Gambar slip gaji tersalin ke Clipboard! Silakan buka WhatsApp dan tekan Ctrl+V (Tempel).');
+        setTimeout(() => setCopyImageSuccess(false), 4500);
+        setTimeout(() => setSaveSuccessMsg(null), 4500);
+      } else {
+        // Fallback: download PNG image automatically if clipboard writing is blocked by browser permissions
+        const dataUrl = await toPng(node, { quality: 0.98, pixelRatio: 2, backgroundColor: '#ffffff' });
+        const link = document.createElement('a');
+        const cleanName = (selectedPayroll?.user_name || 'karyawan').replace(/[^a-zA-Z0-9]/g, '_');
+        link.download = `Slip_Gaji_${cleanName}_${selectedMonth}.png`;
+        link.href = dataUrl;
+        link.click();
+        setSaveSuccessMsg('✓ Gambar slip gaji otomatis diunduh! Anda bisa langsung melampirkannya di WhatsApp.');
+        setTimeout(() => setSaveSuccessMsg(null), 4500);
+      }
+    } catch (err: any) {
+      console.error('Error in handleCopySlipImage:', err);
+      alert('Gagal menyalin gambar slip: ' + (err?.message || 'Terjadi kesalahan sistem'));
+    } finally {
+      setIsCopyingImage(false);
     }
-
-    text += `================================\n`;
-    text += `💵 *TOTAL GAJI BERSIH (NETTO):*\n`;
-    text += `👉 *${formatRupiah(item.net_salary)}*\n`;
-    text += `================================\n`;
-
-    if (snap?.notes) {
-      text += `📝 *Catatan:* ${snap.notes}\n\n`;
-    }
-
-    text += `_Terima kasih atas dedikasi dan kerja kerasnya!_\n`;
-    text += `_By Management Mister Pancong Lumer_`;
-
-    return text;
   };
 
-  const handleCopySlipText = (item: PayrollItem) => {
-    const text = generateSlipWhatsAppText(item);
-    if (navigator?.clipboard) {
-      navigator.clipboard.writeText(text);
-      setCopiedSlipId(item.id);
-      setTimeout(() => setCopiedSlipId(null), 2500);
-    } else {
-      alert('Teks slip berhasil disalin!');
-    }
-  };
+  // ==========================================
+  // FITUR HITUNG GAJI OTOMATIS DARI DATA ABSENSI
+  // ==========================================
+  const handleAutoCalculateAllFromAttendance = async () => {
+    const confirmed = window.confirm(
+      `Hitung gaji otomatis seluruh karyawan berdasarkan rekaman data absensi terverifikasi?\n\n` +
+      `Periode: ${currentCutoff.monthLabel} (${currentCutoff.rangeText})\n` +
+      `Rentang Tanggal: ${currentCutoff.startDate} s/d ${currentCutoff.endDate}`
+    );
+    if (!confirmed) return;
 
-  const handleSendWhatsApp = (item: PayrollItem) => {
-    const text = generateSlipWhatsAppText(item);
-    const encoded = encodeURIComponent(text);
-    window.open(`https://wa.me/?text=${encoded}`, '_blank');
+    setLoading(true);
+    try {
+      const generatedSlips: PayrollItem[] = [];
+
+      for (const emp of employees) {
+        const setting = payrollSettings.find((s) => s.user_id === emp.id);
+        const attResult = countAttendanceDays(emp.id, emp.full_name, currentCutoff.startDate, currentCutoff.endDate, attendanceList);
+        
+        // Use verified attendance days, fallback to 24 if no attendance clocked yet
+        const days = attResult.count > 0 ? attResult.count : 24;
+
+        const baseDailyRate = setting?.base_salary_type === 'per_day' ? (setting.base_salary || 60000) : 60000;
+        const baseSalaryCalculated = setting?.base_salary_type === 'per_day'
+          ? baseDailyRate * days
+          : (setting?.base_salary || 1500000);
+
+        const mealRate = setting?.meal_allowance || 15000;
+        const mealTotal = mealRate * days;
+
+        const transportRate = setting?.transport_allowance || 15000;
+        const transportTotal = transportRate * days;
+
+        const customBonuses = (setting?.custom_components || []).filter((c) => c.type === 'bonus');
+        const bonusTotal = customBonuses.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+
+        const customDeductions = (setting?.custom_components || []).filter((c) => c.type === 'deduction');
+        const deductionTotal = customDeductions.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+
+        const gross = baseSalaryCalculated + mealTotal + transportTotal + bonusTotal;
+        const net = Math.max(0, gross - deductionTotal);
+
+        const slipPayload: Partial<PayrollItem> = {
+          id: `slip-${emp.id}-${selectedMonth}`,
+          payroll_period_id: `pp-${selectedMonth}`,
+          user_id: emp.id,
+          user_name: emp.full_name,
+          branch_id: (emp as any).branch_id || activeBranch?.id || branches[0]?.id || 'd9ec11ac-c42f-4904-b932-20abbe83e89e',
+          branch_name: (emp as any).branch_name || activeBranch?.name || branches[0]?.name || 'Cidodol',
+          days_present: days,
+          base_salary_calculated: baseSalaryCalculated,
+          transport_calculated: transportTotal,
+          meal_calculated: mealTotal,
+          bonus_amount: bonusTotal,
+          sales_incentive_amount: 0,
+          total_deductions: deductionTotal,
+          net_salary: net,
+          status: 'approved',
+          custom_components: setting?.custom_components || [],
+          snapshot_data: {
+            is_manual: false,
+            is_auto_attendance: true,
+            period_label: currentCutoff.monthLabel,
+            cutoff_range: currentCutoff.rangeText,
+            cutoff_start: currentCutoff.startDate,
+            cutoff_end: currentCutoff.endDate,
+            base_salary: {
+              mode: setting?.base_salary_type === 'per_day' ? 'daily' : 'fixed',
+              rate: baseDailyRate,
+              days: days,
+              total: baseSalaryCalculated,
+            },
+            meal: {
+              rate: mealRate,
+              days: days,
+              total: mealTotal,
+            },
+            transport: {
+              rate: transportRate,
+              days: transportDays,
+              total: transportTotal,
+            },
+            bonuses: customBonuses.map((b) => ({
+              id: b.id,
+              name: b.name,
+              mode: 'fixed' as const,
+              rate: b.amount,
+              qty: 1,
+              unit: 'kali',
+              total: b.amount,
+            })),
+            deductions: customDeductions.map((d) => ({
+              id: d.id,
+              name: d.name,
+              amount: d.amount,
+            })),
+            notes: `Dihitung otomatis dari absensi (${currentCutoff.rangeText})`,
+          },
+        };
+
+        const saved = await DataService.savePayrollItem(slipPayload);
+        generatedSlips.push(saved);
+      }
+
+      await fetchPayrollData();
+      setSaveSuccessMsg(`✓ Berhasil menghitung & menyimpan slip gaji otomatis untuk ${generatedSlips.length} karyawan (${currentCutoff.monthLabel})!`);
+      setTimeout(() => setSaveSuccessMsg(null), 4500);
+    } catch (err: any) {
+      console.error('Failed auto calculating payroll:', err);
+      alert('Gagal menghitung gaji otomatis: ' + (err?.message || 'Terjadi kesalahan sistem'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Submit and Save Manual Slip
@@ -707,7 +894,10 @@ export default function PayrollPage() {
         custom_components: formattedCustomComponents,
         snapshot_data: {
           is_manual: true,
-          period_label: manualPeriodLabel || `Periode ${selectedMonth}`,
+          period_label: formatMonthOnly(manualPeriodLabel || currentCutoff.monthLabel),
+          cutoff_range: currentCutoff.rangeText,
+          cutoff_start: currentCutoff.startDate,
+          cutoff_end: currentCutoff.endDate,
           base_salary: {
             mode: baseMode,
             rate: baseDailyRate,
@@ -798,14 +988,56 @@ export default function PayrollPage() {
             <span>+ Buat Slip Gaji Manual</span>
           </button>
 
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-2 rounded-2xl">
-            <Calendar className="w-4 h-4 text-slate-400" />
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none"
-            />
+          {/* Tombol Hitung Otomatis Seluruh Karyawan (Dari Absensi) */}
+          <button
+            onClick={handleAutoCalculateAllFromAttendance}
+            className="py-2.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20 active:scale-95 transition-all flex items-center gap-1.5"
+            title="Hitung & simpan slip gaji otomatis seluruh karyawan berdasarkan absensi terverifikasi"
+          >
+            <Zap className="w-4 h-4 text-emerald-200 fill-emerald-200" />
+            <span>⚡ Hitung Otomatis dari Absensi</span>
+          </button>
+
+          {/* Pemilih Periode Bulan Saja & Cutoff */}
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-2xl">
+            <Calendar className="w-4 h-4 text-amber-700 shrink-0" />
+            <div className="flex flex-col">
+              <span className="text-[9px] font-extrabold uppercase text-slate-400 leading-none">Periode Bulan</span>
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="bg-transparent text-xs font-black text-slate-900 focus:outline-none"
+              />
+            </div>
+            
+            {/* Cut-off Toggle (26 - 25) */}
+            <div className="hidden sm:flex items-center gap-1 bg-white p-0.5 rounded-xl border border-slate-200 ml-1 text-[10px]">
+              <button
+                type="button"
+                onClick={() => setCutoffCycle('curr_to_next')}
+                className={`px-2 py-1 rounded-lg font-bold transition-all ${
+                  cutoffCycle === 'curr_to_next'
+                    ? 'bg-[#3d1e0f] text-amber-200 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="Cut-off 26 bulan ini s/d 25 bulan besok"
+              >
+                26 Skrg - 25 Bsk
+              </button>
+              <button
+                type="button"
+                onClick={() => setCutoffCycle('prev_to_curr')}
+                className={`px-2 py-1 rounded-lg font-bold transition-all ${
+                  cutoffCycle === 'prev_to_curr'
+                    ? 'bg-[#3d1e0f] text-amber-200 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="Cut-off 26 bulan lalu s/d 25 bulan ini"
+              >
+                26 Lalu - 25 Ini
+              </button>
+            </div>
           </div>
 
           <button
@@ -911,8 +1143,8 @@ export default function PayrollPage() {
                 </div>
               </div>
               <div className="text-right text-xs">
-                <p className="font-bold text-slate-800">Periode: {selectedMonth}</p>
-                <p className="text-[10px] text-slate-400">Total: {filteredPayrollItems.length} Slip Tersimpan</p>
+                <p className="font-bold text-slate-800">Periode: {formatMonthOnly(selectedMonth)}</p>
+                <p className="text-[10px] text-slate-400">Cut-off: {currentCutoff.rangeText} • Total: {filteredPayrollItems.length} Slip Tersimpan</p>
               </div>
             </div>
 
@@ -1014,38 +1246,14 @@ export default function PayrollPage() {
                         </div>
 
                         <div className="flex items-center gap-1.5 print:hidden">
-                          {/* Tombol Copy Teks Slip Cepat (WhatsApp) */}
-                          <button
-                            onClick={() => handleCopySlipText(item)}
-                            className={`p-2 rounded-xl font-bold text-xs flex items-center gap-1 transition-all ${
-                              copiedSlipId === item.id
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                            }`}
-                            title="Salin Teks Slip Gaji (Format WhatsApp)"
-                          >
-                            {copiedSlipId === item.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                            <span className="hidden md:inline">{copiedSlipId === item.id ? 'Tersalin' : 'Copy WA'}</span>
-                          </button>
-
-                          {/* Tombol Duplikasi Slip */}
-                          <button
-                            onClick={() => handleDuplicateSlip(item)}
-                            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors"
-                            title="Duplikat data slip ini untuk membuat slip baru"
-                          >
-                            <Share2 className="w-4 h-4 text-slate-600" />
-                            <span className="hidden md:inline">Duplikat</span>
-                          </button>
-
-                          {/* Tombol Lihat & Cetak Slip */}
+                          {/* Tombol Lihat & Copy Gambar Slip */}
                           <button
                             onClick={() => setSelectedPayroll(item)}
-                            className="px-3 py-2 rounded-xl bg-amber-100 text-[#3d1e0f] font-bold text-xs hover:bg-amber-200 flex items-center gap-1.5 transition-colors"
-                            title="Lihat & Cetak Slip Gaji Resmi"
+                            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center gap-1.5 transition-colors shadow-sm active:scale-95"
+                            title="Buka Slip & Copy Gambar untuk WhatsApp"
                           >
-                            <Eye className="w-3.5 h-3.5 text-amber-800" />
-                            <span>Cetak</span>
+                            <Camera className="w-3.5 h-3.5 text-emerald-200" />
+                            <span>📸 Copy Gambar Slip</span>
                           </button>
 
                           {/* Tombol Hapus */}
@@ -1224,20 +1432,64 @@ export default function PayrollPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
-                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Label Periode Gaji</label>
-                    <input
-                      type="text"
-                      value={manualPeriodLabel}
-                      onChange={(e) => setManualPeriodLabel(e.target.value)}
-                      placeholder="e.g. Periode Oktober 2026 / Minggu ke-3"
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
-                    />
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Periode Gaji (Bulan Saja)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={formatMonthOnly(manualPeriodLabel || currentCutoff.monthLabel)}
+                        onChange={(e) => setManualPeriodLabel(e.target.value)}
+                        placeholder="e.g. Oktober 2026"
+                        className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+                      />
+                    </div>
+                    {/* Cut-off info & cycle toggle */}
+                    <div className="mt-1.5 flex items-center justify-between text-[10px]">
+                      <span className="text-slate-500 font-semibold">
+                        Cut-off: <strong>{currentCutoff.rangeText}</strong>
+                      </span>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCutoffCycle('curr_to_next');
+                            const nextCutoff = getPayrollCutoffRange(selectedMonth, 'curr_to_next');
+                            setManualPeriodLabel(nextCutoff.monthLabel);
+                          }}
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all ${
+                            cutoffCycle === 'curr_to_next' ? 'bg-[#3d1e0f] text-amber-200 shadow-xs' : 'bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          26 Skrg - 25 Bsk
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCutoffCycle('prev_to_curr');
+                            const nextCutoff = getPayrollCutoffRange(selectedMonth, 'prev_to_curr');
+                            setManualPeriodLabel(nextCutoff.monthLabel);
+                          }}
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all ${
+                            cutoffCycle === 'prev_to_curr' ? 'bg-[#3d1e0f] text-amber-200 shadow-xs' : 'bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          26 Lalu - 25 Ini
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-[11px] font-bold text-slate-700">Total Hari Masuk / Hadir</label>
-                      <span className="text-[10px] text-amber-700 font-semibold">Otomatis sinkron ke Makan & Transport</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSyncAttendanceForManual()}
+                        className="text-[10px] bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-lg font-bold flex items-center gap-1 transition-colors"
+                        title="Ambil dan hitung otomatis dari data absensi karyawan"
+                      >
+                        <Zap className="w-3 h-3 text-emerald-700 fill-emerald-700" />
+                        <span>⚡ Ambil dari Absensi</span>
+                      </button>
                     </div>
                     <div className="flex gap-2 items-center">
                       <input
@@ -1964,8 +2216,11 @@ export default function PayrollPage() {
                   <span className="inline-block px-2.5 sm:px-3 py-1 rounded-full bg-[#3d1e0f] text-amber-300 font-extrabold text-[11px] sm:text-xs tracking-wider uppercase shadow-xs">
                     SLIP GAJI
                   </span>
-                  <p className="text-[11px] sm:text-xs font-mono font-bold text-slate-700 mt-1">
-                    {selectedPayroll.snapshot_data?.period_label || `Periode: ${selectedMonth}`}
+                  <p className="text-xs sm:text-sm font-black text-slate-900 mt-1">
+                    {formatMonthOnly(selectedPayroll.snapshot_data?.period_label || selectedMonth)}
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    Cut-off: {selectedPayroll.snapshot_data?.cutoff_range || currentCutoff.rangeText}
                   </p>
                 </div>
               </div>
@@ -2158,55 +2413,52 @@ export default function PayrollPage() {
 
             </div>
 
-            {/* Action Control Buttons (Copy WhatsApp / Send WA / Duplicate / Print / Close) */}
-            <div className="p-3.5 bg-slate-50 border-t border-slate-200 space-y-2 print:hidden">
+            {/* Action Control Buttons (HANYA 1 TOMBOL COPY GAMBAR SLIP UNTUK WA) */}
+            <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center gap-2.5 print:hidden">
               
-              {/* Row 1: Copy Teks WhatsApp, Kirim WA & Duplikat */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleCopySlipText(selectedPayroll)}
-                  className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs ${
-                    copiedSlipId === selectedPayroll.id
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                  }`}
-                  title="Salin rincian slip format rapi untuk WhatsApp"
-                >
-                  {copiedSlipId === selectedPayroll.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  <span>{copiedSlipId === selectedPayroll.id ? '✓ Teks Tersalin!' : '📋 Salin Teks (WhatsApp)'}</span>
-                </button>
+              {/* HANYA 1 TOMBOL COPY GAMBAR SLIP */}
+              <button
+                onClick={handleCopySlipImage}
+                disabled={isCopyingImage}
+                className={`w-full sm:flex-1 py-3 px-4 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 ${
+                  copyImageSuccess
+                    ? 'bg-emerald-600 text-white shadow-emerald-600/30'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/25'
+                }`}
+                title="Copy gambar slip gaji ke clipboard untuk langsung ditempel (Ctrl+V) di WhatsApp"
+              >
+                {isCopyingImage ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Memproses Gambar Slip...</span>
+                  </>
+                ) : copyImageSuccess ? (
+                  <>
+                    <CheckCircle2 className="w-5 h-5 text-emerald-200" />
+                    <span>✓ Gambar Tersalin! Tinggal Tempel (Ctrl+V) di WA</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera className="w-5 h-5 text-emerald-200" />
+                    <span>📸 Copy Gambar Slip (Paste ke WA)</span>
+                  </>
+                )}
+              </button>
 
-                <button
-                  onClick={() => handleSendWhatsApp(selectedPayroll)}
-                  className="py-2.5 px-3.5 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
-                  title="Buka WhatsApp langsung untuk kirim slip ini"
-                >
-                  <MessageSquare className="w-4 h-4 text-emerald-700" />
-                  <span className="hidden sm:inline">Kirim WA</span>
-                </button>
-
-                <button
-                  onClick={() => handleDuplicateSlip(selectedPayroll)}
-                  className="py-2.5 px-3.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-[#3d1e0f] font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
-                  title="Duplikasi data slip ini untuk membuat slip periode berikutnya atau karyawan lain"
-                >
-                  <Share2 className="w-4 h-4 text-amber-800" />
-                  <span>Duplikat Slip</span>
-                </button>
-              </div>
-
-              {/* Row 2: Print PDF & Tutup */}
-              <div className="flex gap-2">
+              {/* Tombol Print & Tutup */}
+              <div className="flex w-full sm:w-auto items-center gap-2">
                 <button
                   onClick={handlePrintPDF}
-                  className="flex-1 py-3 rounded-xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-extrabold text-xs shadow-md flex items-center justify-center gap-2 active:scale-95 transition-all"
+                  className="flex-1 sm:flex-none py-3 px-4 rounded-2xl bg-[#3d1e0f] hover:bg-amber-950 text-amber-100 font-extrabold text-xs shadow-md flex items-center justify-center gap-1.5 transition-colors"
+                  title="Cetak PDF Slip Gaji"
                 >
                   <Printer className="w-4 h-4 text-amber-400" />
-                  <span>Print PDF Slip Gaji</span>
+                  <span>Print PDF</span>
                 </button>
+
                 <button
                   onClick={() => setSelectedPayroll(null)}
-                  className="py-3 px-6 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs"
+                  className="py-3 px-5 rounded-2xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs transition-colors"
                 >
                   Tutup
                 </button>
