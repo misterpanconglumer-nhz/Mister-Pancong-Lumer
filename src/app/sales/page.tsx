@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { SaleTransaction } from '@/types';
 import { DataService } from '@/lib/services/dataService';
 import { formatRupiah, formatDateTime, formatDate } from '@/lib/utils/formatters';
-import { Search, Filter, Receipt, Ban, Eye, Printer, Calendar, Store, User, RotateCcw, Trash2, DollarSign, UtensilsCrossed, X } from 'lucide-react';
+import { Search, Filter, Receipt, Ban, Eye, Printer, Calendar, Store, User, RotateCcw, Trash2, DollarSign, UtensilsCrossed, X, ArrowRight } from 'lucide-react';
 import ReceiptModal from '@/components/pos/ReceiptModal';
 
 export default function SalesHistoryPage() {
@@ -16,7 +16,14 @@ export default function SalesHistoryPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterBranchId, setFilterBranchId] = useState<string>('all');
+  const [filterDateMode, setFilterDateMode] = useState<'single' | 'range'>('single');
   const [filterDate, setFilterDate] = useState<string>('');
+  const [filterStartDate, setFilterStartDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    return d.toISOString().split('T')[0];
+  });
+  const [filterEndDate, setFilterEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedTx, setSelectedTx] = useState<SaleTransaction | null>(null);
 
   // View Mode: 'transactions' (Daftar TRX) vs 'menu_recap' (Rekap Menu Terjual)
@@ -63,7 +70,26 @@ export default function SalesHistoryPage() {
     setSearchQuery('');
     setFilterBranchId('all');
     setFilterDate('');
+    setFilterStartDate('');
+    setFilterEndDate('');
   };
+
+  // Label text for active date filter
+  const dateFilterLabel = useMemo(() => {
+    if (filterDateMode === 'single') {
+      if (!filterDate) return 'Semua Tanggal';
+      if (filterDate === todayStr) return 'Hari Ini';
+      if (filterDate === yesterdayStr) return 'Kemarin';
+      return formatDate(filterDate);
+    }
+    if (filterStartDate && filterEndDate) {
+      if (filterStartDate === filterEndDate) return formatDate(filterStartDate);
+      return `${formatDate(filterStartDate)} s/d ${formatDate(filterEndDate)}`;
+    }
+    if (filterStartDate) return `Mulai ${formatDate(filterStartDate)}`;
+    if (filterEndDate) return `Sampai ${formatDate(filterEndDate)}`;
+    return 'Semua Rentang Tanggal';
+  }, [filterDateMode, filterDate, filterStartDate, filterEndDate, todayStr, yesterdayStr]);
 
   // Filter logic
   const filteredSales = sales.filter((s) => {
@@ -76,9 +102,16 @@ export default function SalesHistoryPage() {
       return false;
     }
 
-    if (filterDate !== '') {
+    // Filter by single date or date range
+    if (filterDateMode === 'single') {
+      if (filterDate !== '') {
+        const txDate = s.created_at.split('T')[0];
+        if (txDate !== filterDate) return false;
+      }
+    } else {
       const txDate = s.created_at.split('T')[0];
-      if (txDate !== filterDate) return false;
+      if (filterStartDate && txDate < filterStartDate) return false;
+      if (filterEndDate && txDate > filterEndDate) return false;
     }
 
     if (searchQuery.trim() !== '') {
@@ -242,11 +275,11 @@ export default function SalesHistoryPage() {
           </div>
 
           {isKasir ? (
-            filterDate ? (
+            (filterDateMode === 'single' ? filterDate : (filterStartDate || filterEndDate)) ? (
               <div className="px-3.5 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-extrabold text-xs flex items-center gap-1.5 animate-in fade-in">
                 <DollarSign className="w-4 h-4 text-emerald-600" />
                 <span>
-                  Omzet ({filterDate === todayStr ? 'Hari Ini' : filterDate === yesterdayStr ? 'Kemarin' : formatDate(filterDate)}): <strong>{formatRupiah(totalOmzetFiltered)}</strong>
+                  Omzet ({dateFilterLabel}): <strong>{formatRupiah(totalOmzetFiltered)}</strong>
                 </span>
               </div>
             ) : (
@@ -260,8 +293,8 @@ export default function SalesHistoryPage() {
             )
           ) : (
             <div className="px-3.5 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-extrabold text-xs">
-              {filterDate
-                ? `Omzet (${filterDate === todayStr ? 'Hari Ini' : filterDate === yesterdayStr ? 'Kemarin' : formatDate(filterDate)}): `
+              {(filterDateMode === 'single' ? filterDate : (filterStartDate || filterEndDate))
+                ? `Omzet (${dateFilterLabel}): `
                 : 'Total Omzet Keseluruhan: '}
               {formatRupiah(totalOmzetFiltered)}
             </div>
@@ -271,7 +304,33 @@ export default function SalesHistoryPage() {
 
       {/* Search & Date Filter Bar */}
       <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+        {/* Date Mode Switcher */}
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl w-fit">
+          <button
+            type="button"
+            onClick={() => setFilterDateMode('single')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              filterDateMode === 'single'
+                ? 'bg-white text-[#3d1e0f] shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            📅 1 Tanggal (Harian)
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterDateMode('range')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              filterDateMode === 'range'
+                ? 'bg-white text-[#3d1e0f] shadow-xs ring-2 ring-amber-400/50'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            📆 Rentang Tanggal (Dari - Sampai)
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           
           {/* Search Box */}
           <div className="relative md:col-span-5">
@@ -287,44 +346,119 @@ export default function SalesHistoryPage() {
 
           {/* Date Parameter Filter */}
           <div className="relative md:col-span-7 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleSetToday}
-              className={`px-3.5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-1.5 active:scale-95 ${
-                filterDate === todayStr
-                  ? 'bg-[#3d1e0f] text-amber-100 shadow-md ring-2 ring-amber-400'
-                  : 'bg-amber-100 hover:bg-amber-200 text-[#3d1e0f]'
-              }`}
-              title="Filter Transaksi & Omzet Hari Ini"
-            >
-              <span>Hari Ini</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleSetYesterday}
-              className={`px-3.5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-1.5 active:scale-95 ${
-                filterDate === yesterdayStr
-                  ? 'bg-[#3d1e0f] text-amber-100 shadow-md ring-2 ring-amber-400'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              }`}
-              title="Filter Transaksi & Omzet Kemarin"
-            >
-              <span>Kemarin</span>
-            </button>
-            <div className="relative flex-1 min-w-[140px]">
-              <Calendar className="w-4 h-4 text-amber-600 absolute left-3 top-3.5" />
-              <input
-                type="date"
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f] transition-all ${
-                  filterDate && filterDate !== todayStr && filterDate !== yesterdayStr
-                    ? 'border-amber-500 ring-2 ring-amber-400 bg-amber-50/50'
-                    : 'border-slate-200'
-                }`}
-                title="Pilih Parameter Tanggal Tertentu"
-              />
-            </div>
+            {filterDateMode === 'single' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleSetToday}
+                  className={`px-3.5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-1.5 active:scale-95 ${
+                    filterDate === todayStr
+                      ? 'bg-[#3d1e0f] text-amber-100 shadow-md ring-2 ring-amber-400'
+                      : 'bg-amber-100 hover:bg-amber-200 text-[#3d1e0f]'
+                  }`}
+                  title="Filter Transaksi & Omzet Hari Ini"
+                >
+                  <span>Hari Ini</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSetYesterday}
+                  className={`px-3.5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-1.5 active:scale-95 ${
+                    filterDate === yesterdayStr
+                      ? 'bg-[#3d1e0f] text-amber-100 shadow-md ring-2 ring-amber-400'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                  title="Filter Transaksi & Omzet Kemarin"
+                >
+                  <span>Kemarin</span>
+                </button>
+                <div className="relative flex-1 min-w-[140px]">
+                  <Calendar className="w-4 h-4 text-amber-600 absolute left-3 top-3.5 pointer-events-none" />
+                  <input
+                    type="date"
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f] transition-all ${
+                      filterDate && filterDate !== todayStr && filterDate !== yesterdayStr
+                        ? 'border-amber-500 ring-2 ring-amber-400 bg-amber-50/50'
+                        : 'border-slate-200'
+                    }`}
+                    title="Pilih Parameter Tanggal Tertentu"
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2 w-full">
+                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-2 rounded-2xl text-xs">
+                  <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider">Dari:</span>
+                  <input
+                    type="date"
+                    value={filterStartDate}
+                    onChange={(e) => setFilterStartDate(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1 text-slate-400 font-bold text-xs">
+                  <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                  <span>s/d</span>
+                </div>
+
+                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-2 rounded-2xl text-xs">
+                  <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider hidden sm:inline">Sampai:</span>
+                  <input
+                    type="date"
+                    value={filterEndDate}
+                    onChange={(e) => setFilterEndDate(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const end = new Date();
+                    const start = new Date();
+                    start.setDate(end.getDate() - 6);
+                    setFilterStartDate(start.toISOString().split('T')[0]);
+                    setFilterEndDate(end.toISOString().split('T')[0]);
+                  }}
+                  className="px-2.5 py-2 rounded-xl text-xs font-bold bg-amber-100 hover:bg-amber-200 text-[#3d1e0f] transition-all"
+                  title="7 Hari Terakhir"
+                >
+                  ⚡ 7 Hari
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const end = new Date();
+                    const start = new Date();
+                    start.setDate(end.getDate() - 29);
+                    setFilterStartDate(start.toISOString().split('T')[0]);
+                    setFilterEndDate(end.toISOString().split('T')[0]);
+                  }}
+                  className="px-2.5 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all"
+                  title="30 Hari Terakhir"
+                >
+                  30 Hari
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date();
+                    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                    setFilterStartDate(firstDay.toISOString().split('T')[0]);
+                    setFilterEndDate(now.toISOString().split('T')[0]);
+                  }}
+                  className="px-2.5 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all"
+                  title="Bulan Berjalan"
+                >
+                  Bulan Ini
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Branch Picker (Owner & Admin) */}
@@ -350,16 +484,14 @@ export default function SalesHistoryPage() {
         </div>
 
         {/* Active Filter Indicators */}
-        {(filterDate || filterBranchId !== 'all' || searchQuery) && (
+        {((filterDateMode === 'single' ? filterDate : (filterStartDate || filterEndDate)) || filterBranchId !== 'all' || searchQuery) && (
           <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
             <div className="flex items-center gap-2 text-slate-500">
               <Filter className="w-3.5 h-3.5 text-amber-600" />
               <span>Filter Aktif:</span>
-              {filterDate && (
-                <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-[#3d1e0f] font-mono font-bold">
-                  {filterDate === todayStr ? 'Hari Ini' : filterDate === yesterdayStr ? 'Kemarin' : `Tanggal: ${filterDate}`}
-                </span>
-              )}
+              <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-[#3d1e0f] font-mono font-bold">
+                {dateFilterLabel}
+              </span>
               {filterBranchId !== 'all' && (
                 <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-[#3d1e0f] font-bold">
                   Cabang: {branches.find((b) => b.id === filterBranchId)?.name || filterBranchId}
@@ -385,12 +517,10 @@ export default function SalesHistoryPage() {
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-amber-700 shrink-0" />
             <span>
-              {filterDate ? (
+              {(filterDateMode === 'single' ? filterDate : (filterStartDate || filterEndDate)) ? (
                 <>
                   Menampilkan data & omzet{' '}
-                  <strong className="text-slate-900">
-                    {filterDate === todayStr ? 'Hari Ini' : filterDate === yesterdayStr ? 'Kemarin' : formatDate(filterDate)}
-                  </strong>
+                  <strong className="text-slate-900">{dateFilterLabel}</strong>
                   : Total Omzet Terhitung{' '}
                   <strong className="text-emerald-700 text-sm font-extrabold">{formatRupiah(totalOmzetFiltered)}</strong>
                 </>
@@ -402,7 +532,7 @@ export default function SalesHistoryPage() {
               )}
             </span>
           </div>
-          {!filterDate && (
+          {!(filterDateMode === 'single' ? filterDate : (filterStartDate || filterEndDate)) && (
             <button
               type="button"
               onClick={handleSetToday}
@@ -456,7 +586,7 @@ export default function SalesHistoryPage() {
               <p className="text-xs text-slate-500 mt-0.5">
                 Cek menu apa saja yang terjual dan berapa banyak pada parameter tanggal{' '}
                 <strong className="text-slate-700">
-                  {filterDate ? (filterDate === todayStr ? 'Hari Ini' : filterDate === yesterdayStr ? 'Kemarin' : formatDate(filterDate)) : 'Semua Tanggal'}
+                  {dateFilterLabel}
                 </strong>.
               </p>
             </div>

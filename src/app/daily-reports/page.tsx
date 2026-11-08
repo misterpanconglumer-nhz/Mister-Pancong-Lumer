@@ -32,6 +32,7 @@ import {
   Filter,
   Sparkles,
   TrendingUp,
+  ArrowRight,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 
@@ -59,9 +60,15 @@ export default function DailyReportsPage() {
   const [menuSearchQuery, setMenuSearchQuery] = useState<string>('');
   const [menuSortBy, setMenuSortBy] = useState<'qty_desc' | 'revenue_desc' | 'name_asc'>('qty_desc');
 
-  // Parameter Filter: Hari / Bulan / Cabang / Karyawan
-  const [filterMode, setFilterMode] = useState<'date' | 'month'>('date');
+  // Parameter Filter: Hari / Rentang Tanggal / Bulan / Cabang / Karyawan
+  const [filterMode, setFilterMode] = useState<'date' | 'range' | 'month'>('date');
   const [filterDate, setFilterDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [filterStartDate, setFilterStartDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    return d.toISOString().split('T')[0];
+  });
+  const [filterEndDate, setFilterEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [filterMonth, setFilterMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   const [filterBranchId, setFilterBranchId] = useState<string>(isEmployee ? (activeBranch?.id || 'all') : 'all');
   const [filterEmployeeId, setFilterEmployeeId] = useState<string>(isEmployee ? (user?.id || 'all') : 'all');
@@ -129,9 +136,13 @@ export default function DailyReportsPage() {
       // Must be completed
       if (s.status !== 'completed') return false;
 
-      // Filter by Date or Month
+      // Filter by Date, Range, or Month
       if (filterMode === 'date') {
         if (filterDate && !s.created_at.startsWith(filterDate)) return false;
+      } else if (filterMode === 'range') {
+        const txDate = s.created_at.split('T')[0];
+        if (filterStartDate && txDate < filterStartDate) return false;
+        if (filterEndDate && txDate > filterEndDate) return false;
       } else {
         if (filterMonth && !s.created_at.startsWith(filterMonth)) return false;
       }
@@ -157,7 +168,7 @@ export default function DailyReportsPage() {
 
       return true;
     });
-  }, [rawSales, filterMode, filterDate, filterMonth, filterBranchId, filterEmployeeId, targetEmployeeObj, user, isEmployee, activeBranch]);
+  }, [rawSales, filterMode, filterDate, filterStartDate, filterEndDate, filterMonth, filterBranchId, filterEmployeeId, targetEmployeeObj, user, isEmployee, activeBranch]);
 
   // Filtered Expenses based on Date, Branch, and Employee
   const filteredExpenses = useMemo(() => {
@@ -165,9 +176,13 @@ export default function DailyReportsPage() {
       // Ignore rejected expenses
       if (e.status === 'rejected') return false;
 
-      // Filter by Date or Month
+      // Filter by Date, Range, or Month
       if (filterMode === 'date') {
         if (filterDate && e.expense_date !== filterDate) return false;
+      } else if (filterMode === 'range') {
+        const expDate = e.expense_date ? e.expense_date.split('T')[0] : '';
+        if (filterStartDate && expDate < filterStartDate) return false;
+        if (filterEndDate && expDate > filterEndDate) return false;
       } else {
         if (filterMonth && !e.expense_date?.startsWith(filterMonth)) return false;
       }
@@ -193,7 +208,7 @@ export default function DailyReportsPage() {
 
       return true;
     });
-  }, [rawExpenses, filterMode, filterDate, filterMonth, filterBranchId, filterEmployeeId, targetEmployeeObj, user, isEmployee, activeBranch]);
+  }, [rawExpenses, filterMode, filterDate, filterStartDate, filterEndDate, filterMonth, filterBranchId, filterEmployeeId, targetEmployeeObj, user, isEmployee, activeBranch]);
 
   // Aggregated Metrics for the current view
   const shiftMetrics = useMemo(() => {
@@ -339,16 +354,40 @@ export default function DailyReportsPage() {
       if (filterBranchId !== 'all' && r.branch_id !== filterBranchId) return false;
       if (filterMode === 'date') {
         if (filterDate && r.report_date !== filterDate) return false;
+      } else if (filterMode === 'range') {
+        if (filterStartDate && r.report_date < filterStartDate) return false;
+        if (filterEndDate && r.report_date > filterEndDate) return false;
       } else {
         if (filterMonth && !r.report_date.startsWith(filterMonth)) return false;
       }
       return true;
     });
-  }, [reports, filterBranchId, filterMode, filterDate, filterMonth]);
+  }, [reports, filterBranchId, filterMode, filterDate, filterStartDate, filterEndDate, filterMonth]);
+
+  // Active period text for labels and headings
+  const activePeriodLabel = useMemo(() => {
+    if (filterMode === 'date') {
+      return filterDate ? formatDate(filterDate) : 'Semua Tanggal';
+    }
+    if (filterMode === 'range') {
+      if (filterStartDate && filterEndDate) {
+        if (filterStartDate === filterEndDate) return formatDate(filterStartDate);
+        return `${formatDate(filterStartDate)} s/d ${formatDate(filterEndDate)}`;
+      }
+      if (filterStartDate) return `Mulai ${formatDate(filterStartDate)}`;
+      if (filterEndDate) return `Sampai ${formatDate(filterEndDate)}`;
+      return 'Semua Rentang Tanggal';
+    }
+    return `Bulan ${filterMonth}`;
+  }, [filterMode, filterDate, filterStartDate, filterEndDate, filterMonth]);
 
   // Open Tutup Kas modal
   const handleOpenTutupKasModal = () => {
-    const targetDate = filterMode === 'date' && filterDate ? filterDate : new Date().toISOString().split('T')[0];
+    const targetDate = filterMode === 'date' && filterDate
+      ? filterDate
+      : filterMode === 'range' && filterEndDate
+      ? filterEndDate
+      : new Date().toISOString().split('T')[0];
     const targetBranch = filterBranchId !== 'all' ? filterBranchId : (activeBranch?.id || branches[0]?.id || 'd9ec11ac-c42f-4904-b932-20abbe83e89e');
 
     setReportDate(targetDate);
@@ -513,7 +552,7 @@ export default function DailyReportsPage() {
         {/* Top Filter Row: Presets & Dropdowns */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           
-          {/* Mode Switcher: Tanggal vs Bulan */}
+          {/* Mode Switcher: Tanggal vs Rentang Tanggal vs Bulan */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl">
             <button
               onClick={() => setFilterMode('date')}
@@ -524,6 +563,16 @@ export default function DailyReportsPage() {
               }`}
             >
               📅 Filter Harian
+            </button>
+            <button
+              onClick={() => setFilterMode('range')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                filterMode === 'range'
+                  ? 'bg-white text-[#3d1e0f] shadow-xs ring-2 ring-amber-400/50'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              📆 Rentang Tanggal (Dari - Sampai)
             </button>
             <button
               onClick={() => setFilterMode('month')}
@@ -649,6 +698,96 @@ export default function DailyReportsPage() {
                 </button>
               )}
             </>
+          ) : filterMode === 'range' ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Dari Tanggal */}
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
+                <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider">Dari Tanggal:</span>
+                <input
+                  type="date"
+                  value={filterStartDate}
+                  onChange={(e) => setFilterStartDate(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-1 text-slate-400 font-bold text-xs px-1">
+                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                <span>Sampai:</span>
+              </div>
+
+              {/* Sampai Tanggal */}
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
+                <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider hidden sm:inline">Sampai Tanggal:</span>
+                <input
+                  type="date"
+                  value={filterEndDate}
+                  onChange={(e) => setFilterEndDate(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none"
+                />
+              </div>
+
+              {/* Preset Rentang */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const end = new Date();
+                    const start = new Date();
+                    start.setDate(end.getDate() - 6);
+                    setFilterStartDate(start.toISOString().split('T')[0]);
+                    setFilterEndDate(end.toISOString().split('T')[0]);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-100 hover:bg-amber-200 text-[#3d1e0f] transition-all"
+                  title="7 Hari Terakhir"
+                >
+                  ⚡ 7 Hari Terakhir
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const end = new Date();
+                    const start = new Date();
+                    start.setDate(end.getDate() - 29);
+                    setFilterStartDate(start.toISOString().split('T')[0]);
+                    setFilterEndDate(end.toISOString().split('T')[0]);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all"
+                  title="30 Hari Terakhir"
+                >
+                  30 Hari Terakhir
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date();
+                    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                    setFilterStartDate(firstDay.toISOString().split('T')[0]);
+                    setFilterEndDate(now.toISOString().split('T')[0]);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all"
+                  title="Bulan Berjalan (Tgl 1 s/d Hari Ini)"
+                >
+                  Bulan Berjalan
+                </button>
+
+                {(isOwner || isAdminPusat) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterStartDate('');
+                      setFilterEndDate('');
+                    }}
+                    className="px-2.5 py-1.5 text-slate-500 hover:text-slate-800 text-xs font-bold"
+                    title="Tampilkan seluruh riwayat tanpa batasan tanggal"
+                  >
+                    Semua Tanggal
+                  </button>
+                )}
+              </div>
+            </div>
           ) : (
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-slate-400" />
@@ -664,7 +803,7 @@ export default function DailyReportsPage() {
 
           {/* Active Filter Indicator */}
           <div className="ml-auto text-xs text-slate-500 font-semibold hidden md:block">
-            Periode: <strong className="text-slate-800">{filterMode === 'date' ? (filterDate ? formatDate(filterDate) : 'Semua Tanggal') : filterMonth}</strong>
+            Periode: <strong className="text-slate-800">{activePeriodLabel}</strong>
           </div>
         </div>
 
@@ -834,7 +973,7 @@ export default function DailyReportsPage() {
                       </span>
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Rincian menu yang laku dan berapa banyak yang terjual pada parameter tanggal ({filterMode === 'date' ? (filterDate ? formatDate(filterDate) : 'Semua Tanggal') : `Bulan ${filterMonth}`}).
+                      Rincian menu yang laku dan berapa banyak yang terjual pada parameter ({activePeriodLabel}).
                     </p>
                   </div>
 
@@ -1019,7 +1158,7 @@ export default function DailyReportsPage() {
                     </span>
                   </h3>
                   <span className="text-xs text-slate-400">
-                    {filterMode === 'date' ? formatDate(filterDate) : filterMonth}
+                    {activePeriodLabel}
                   </span>
                 </div>
 
@@ -1107,7 +1246,7 @@ export default function DailyReportsPage() {
                     </span>
                   </h3>
                   <span className="text-xs text-slate-400">
-                    {filterMode === 'date' ? formatDate(filterDate) : filterMonth}
+                    {activePeriodLabel}
                   </span>
                 </div>
 
@@ -1277,7 +1416,7 @@ export default function DailyReportsPage() {
             </div>
             <div className="text-right text-xs">
               <p className="font-bold text-slate-800">
-                Periode: {filterMode === 'date' ? (filterDate ? formatDate(filterDate) : 'Semua Tanggal') : filterMonth}
+                Periode: {activePeriodLabel}
               </p>
               <p className="text-[10px] text-slate-400">Total: {filteredReports.length} Laporan</p>
             </div>
@@ -1421,8 +1560,8 @@ export default function DailyReportsPage() {
                   <span className="font-bold">{targetEmployeeObj?.full_name || user?.full_name || 'Kasir'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Tanggal:</span>
-                  <span>{filterMode === 'date' ? formatDate(filterDate) : filterMonth}</span>
+                  <span className="text-slate-500">Periode:</span>
+                  <span>{activePeriodLabel}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Waktu Cetak:</span>
