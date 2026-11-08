@@ -27,6 +27,11 @@ import {
   Receipt,
   FileText,
   BadgeCheck,
+  UtensilsCrossed,
+  Search,
+  Filter,
+  Sparkles,
+  TrendingUp,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 
@@ -47,8 +52,12 @@ export default function DailyReportsPage() {
   // Navigation tab for Owner
   const [ownerMainTab, setOwnerMainTab] = useState<'shift_checker' | 'closing_archive'>('shift_checker');
 
-  // Active view tab for transactions detail
-  const [activeDetailTab, setActiveDetailTab] = useState<'sales' | 'expenses' | 'closing'>('sales');
+  // Active view tab for transactions detail ('menu_sales' = Rekap Menu Terjual, 'sales' = Daftar Transaksi, etc.)
+  const [activeDetailTab, setActiveDetailTab] = useState<'menu_sales' | 'sales' | 'expenses' | 'closing'>('menu_sales');
+
+  // Search & sorting for Rekap Menu Terjual
+  const [menuSearchQuery, setMenuSearchQuery] = useState<string>('');
+  const [menuSortBy, setMenuSortBy] = useState<'qty_desc' | 'revenue_desc' | 'name_asc'>('qty_desc');
 
   // Parameter Filter: Hari / Bulan / Cabang / Karyawan
   const [filterMode, setFilterMode] = useState<'date' | 'month'>('date');
@@ -61,10 +70,10 @@ export default function DailyReportsPage() {
   const [showFormModal, setShowFormModal] = useState<boolean>(false);
   const [showSlipModal, setShowSlipModal] = useState<boolean>(false);
 
-  // Form states for closing cash shift modal
+  // Form states for closing cash shift modal (Modal awal dihilangkan, default 0)
   const [reportDate, setReportDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [reportBranchId, setReportBranchId] = useState<string>('');
-  const [initialCashInput, setInitialCashInput] = useState<number>(100000);
+  const [initialCashInput, setInitialCashInput] = useState<number>(0);
   const [actualCashInput, setActualCashInput] = useState<string>('');
   const [reportNotes, setReportNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -206,8 +215,9 @@ export default function DailyReportsPage() {
       .reduce((sum, e) => sum + e.amount, 0);
     const totalExpenseItems = filteredExpenses.length;
 
-    const defaultInitialCash = currentBranchObj?.initial_cash_default ?? 100000;
-    const expectedDrawerCash = defaultInitialCash + cashSales - branchCashExpenses;
+    // Modal awal dihilangkan sesuai permintaan: kas fisik laci murni dari Tunai Masuk dikurangi Belanja Toko
+    const defaultInitialCash = 0;
+    const expectedDrawerCash = cashSales - branchCashExpenses;
     const netTurnover = grossSales - totalExpenses;
 
     return {
@@ -223,7 +233,105 @@ export default function DailyReportsPage() {
       expectedDrawerCash,
       netTurnover,
     };
-  }, [filteredSales, filteredExpenses, currentBranchObj]);
+  }, [filteredSales, filteredExpenses]);
+
+  // Rekapitulasi Penjualan Menu (Menu apa saja yang terjual dan berapa banyak)
+  const soldMenuItemsSummary = useMemo(() => {
+    const map: {
+      [name: string]: {
+        name: string;
+        quantity: number;
+        totalRevenue: number;
+        transactionsCount: number;
+        variants: { [v: string]: number };
+      };
+    } = {};
+
+    let grandTotalQty = 0;
+    let grandTotalRevenue = 0;
+
+    filteredSales.forEach((sale) => {
+      if (sale.items && sale.items.length > 0) {
+        sale.items.forEach((it) => {
+          const rawName = (it.product_name_snapshot || 'Menu Pancong').trim();
+          const qty = Number(it.quantity) || 1;
+          const rev = Number(it.subtotal) || ((Number(it.unit_price_snapshot) || 0) * qty);
+
+          if (!map[rawName]) {
+            map[rawName] = {
+              name: rawName,
+              quantity: 0,
+              totalRevenue: 0,
+              transactionsCount: 0,
+              variants: {},
+            };
+          }
+
+          map[rawName].quantity += qty;
+          map[rawName].totalRevenue += rev;
+          map[rawName].transactionsCount += 1;
+          grandTotalQty += qty;
+          grandTotalRevenue += rev;
+
+          if (it.variant_details_snapshot && Array.isArray(it.variant_details_snapshot)) {
+            it.variant_details_snapshot.forEach((v) => {
+              const vName = v.name?.trim() || 'Standar';
+              map[rawName].variants[vName] = (map[rawName].variants[vName] || 0) + qty;
+            });
+          }
+        });
+      } else if ((sale as any).notes) {
+        // Fallback: parse string seperti "7x Coklat Keju, 2x Double Keju Susu"
+        const parts = String((sale as any).notes).split(',');
+        parts.forEach((p) => {
+          const match = p.trim().match(/^(\d+)\s*x\s*(.+)$/i);
+          if (match) {
+            const qty = parseInt(match[1], 10) || 1;
+            const name = match[2].trim();
+            if (!map[name]) {
+              map[name] = {
+                name,
+                quantity: 0,
+                totalRevenue: 0,
+                transactionsCount: 0,
+                variants: {},
+              };
+            }
+            map[name].quantity += qty;
+            map[name].transactionsCount += 1;
+            grandTotalQty += qty;
+          }
+        });
+      }
+    });
+
+    let items = Object.values(map).map((item) => ({
+      ...item,
+      percentage: grandTotalQty > 0 ? Math.round((item.quantity / grandTotalQty) * 100) : 0,
+    }));
+
+    // Filter berdasarkan kata kunci pencarian nama menu jika ada
+    if (menuSearchQuery.trim()) {
+      const q = menuSearchQuery.toLowerCase();
+      items = items.filter((it) => it.name.toLowerCase().includes(q));
+    }
+
+    // Urutkan data berdasarkan pilihan sort
+    if (menuSortBy === 'qty_desc') {
+      items.sort((a, b) => b.quantity - a.quantity);
+    } else if (menuSortBy === 'revenue_desc') {
+      items.sort((a, b) => b.totalRevenue - a.totalRevenue);
+    } else if (menuSortBy === 'name_asc') {
+      items.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    return {
+      items,
+      grandTotalQty,
+      grandTotalRevenue,
+      uniqueCount: Object.keys(map).length,
+    };
+  }, [filteredSales, menuSearchQuery, menuSortBy]);
 
   // Filtered closing reports (Arsip Tutup Kas)
   const filteredReports = useMemo(() => {
@@ -245,7 +353,7 @@ export default function DailyReportsPage() {
 
     setReportDate(targetDate);
     setReportBranchId(targetBranch);
-    setInitialCashInput(currentBranchObj?.initial_cash_default || 100000);
+    setInitialCashInput(0);
     setActualCashInput('');
     setReportNotes('');
     setShowFormModal(true);
@@ -258,7 +366,7 @@ export default function DailyReportsPage() {
 
     const targetBranchObj = branches.find((b) => b.id === reportBranchId) || activeBranch;
     const actualCashNum = Number(actualCashInput) || 0;
-    const expectedCash = initialCashInput + shiftMetrics.cashSales - shiftMetrics.branchCashExpenses;
+    const expectedCash = shiftMetrics.cashSales - shiftMetrics.branchCashExpenses;
     const cashDiff = actualCashNum - expectedCash;
 
     setIsSubmitting(true);
@@ -274,7 +382,7 @@ export default function DailyReportsPage() {
         cash_sales: shiftMetrics.cashSales,
         non_cash_sales: shiftMetrics.nonCashSales,
         branch_cash_expenses: shiftMetrics.branchCashExpenses,
-        initial_cash_balance: initialCashInput,
+        initial_cash_balance: 0,
         expected_cash: expectedCash,
         actual_cash: actualCashNum,
         cash_difference: cashDiff,
@@ -646,10 +754,6 @@ export default function DailyReportsPage() {
               </div>
               <div className="mt-3 pt-3 border-t border-amber-900/60 text-[10px] text-amber-200/90 space-y-0.5">
                 <div className="flex justify-between">
-                  <span>Modal Awal Kas:</span>
-                  <span className="font-mono font-bold text-white">{formatRupiah(shiftMetrics.defaultInitialCash)}</span>
-                </div>
-                <div className="flex justify-between">
                   <span>(+) Tunai Masuk:</span>
                   <span className="font-mono font-bold text-emerald-300">+{formatRupiah(shiftMetrics.cashSales)}</span>
                 </div>
@@ -666,22 +770,34 @@ export default function DailyReportsPage() {
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
             
             {/* Tab Buttons */}
-            <div className="flex border-b border-slate-100 bg-slate-50/60 p-2 gap-2">
+            <div className="flex border-b border-slate-100 bg-slate-50/60 p-2 gap-2 overflow-x-auto">
+              <button
+                onClick={() => setActiveDetailTab('menu_sales')}
+                className={`flex-1 min-w-[190px] py-3 px-4 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
+                  activeDetailTab === 'menu_sales'
+                    ? 'bg-white text-amber-950 shadow-xs border border-slate-100 ring-2 ring-amber-400/50'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <UtensilsCrossed className="w-4 h-4 text-amber-600" />
+                <span>🥞 Rekap Menu Terjual ({soldMenuItemsSummary.grandTotalQty} Porsi)</span>
+              </button>
+
               <button
                 onClick={() => setActiveDetailTab('sales')}
-                className={`flex-1 py-3 px-4 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
+                className={`flex-1 min-w-[170px] py-3 px-4 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
                   activeDetailTab === 'sales'
                     ? 'bg-white text-emerald-800 shadow-xs border border-slate-100'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <ShoppingCart className="w-4 h-4 text-emerald-600" />
-                <span>Rincian Pemasukan ({filteredSales.length} Transaksi)</span>
+                <span>Rincian Transaksi ({filteredSales.length} Transaksi)</span>
               </button>
 
               <button
                 onClick={() => setActiveDetailTab('expenses')}
-                className={`flex-1 py-3 px-4 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
+                className={`flex-1 min-w-[170px] py-3 px-4 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
                   activeDetailTab === 'expenses'
                     ? 'bg-white text-rose-800 shadow-xs border border-slate-100'
                     : 'text-slate-500 hover:text-slate-800'
@@ -693,7 +809,7 @@ export default function DailyReportsPage() {
 
               <button
                 onClick={() => setActiveDetailTab('closing')}
-                className={`flex-1 py-3 px-4 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
+                className={`flex-1 min-w-[150px] py-3 px-4 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
                   activeDetailTab === 'closing'
                     ? 'bg-white text-[#3d1e0f] shadow-xs border border-slate-100'
                     : 'text-slate-500 hover:text-slate-800'
@@ -703,6 +819,194 @@ export default function DailyReportsPage() {
                 <span>Status Tutup Kas ({filteredReports.length})</span>
               </button>
             </div>
+
+            {/* Tab: Rekap Menu Terjual */}
+            {activeDetailTab === 'menu_sales' && (
+              <div className="p-4 sm:p-6 space-y-4">
+                {/* Header & KPI Summary */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                      <UtensilsCrossed className="w-4 h-4 text-amber-700" />
+                      <span>Rekapitulasi Menu Terjual</span>
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] bg-amber-100 text-amber-900 font-black">
+                        Total {soldMenuItemsSummary.grandTotalQty} Porsi Terjual
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Rincian menu yang laku dan berapa banyak yang terjual pada parameter tanggal ({filterMode === 'date' ? (filterDate ? formatDate(filterDate) : 'Semua Tanggal') : `Bulan ${filterMonth}`}).
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <span className="text-xs text-slate-500 font-semibold">Omzet Menu Terjual:</span>
+                    <span className="font-mono text-sm font-black text-emerald-700 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200">
+                      {formatRupiah(soldMenuItemsSummary.grandTotalRevenue)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Search & Sort Controls */}
+                <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between">
+                  {/* Search Menu Input */}
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      value={menuSearchQuery}
+                      onChange={(e) => setMenuSearchQuery(e.target.value)}
+                      placeholder="Cari nama menu (misal: coklat, keju, meses)..."
+                      className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+                    />
+                    {menuSearchQuery && (
+                      <button
+                        onClick={() => setMenuSearchQuery('')}
+                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Sort Buttons */}
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto text-xs">
+                    <span className="text-slate-400 text-[11px] font-semibold hidden md:inline">Urutkan:</span>
+                    <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                      <button
+                        onClick={() => setMenuSortBy('qty_desc')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                          menuSortBy === 'qty_desc'
+                            ? 'bg-[#3d1e0f] text-amber-100 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                        title="Urutkan dari yang paling banyak terjual"
+                      >
+                        ⚡ Paling Banyak Terjual
+                      </button>
+                      <button
+                        onClick={() => setMenuSortBy('revenue_desc')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                          menuSortBy === 'revenue_desc'
+                            ? 'bg-[#3d1e0f] text-amber-100 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                        title="Urutkan dari omzet rupiah tertinggi"
+                      >
+                        💰 Omzet Tertinggi
+                      </button>
+                      <button
+                        onClick={() => setMenuSortBy('name_asc')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                          menuSortBy === 'name_asc'
+                            ? 'bg-[#3d1e0f] text-amber-100 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                        title="Urutkan nama A-Z"
+                      >
+                        🔤 A-Z
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Content: List of sold items */}
+                {loading ? (
+                  <div className="py-12 text-center text-slate-400 text-xs font-bold">Memuat rekap menu...</div>
+                ) : soldMenuItemsSummary.items.length === 0 ? (
+                  <div className="py-12 text-center space-y-2 bg-slate-50/60 rounded-3xl p-8 border border-slate-100">
+                    <UtensilsCrossed className="w-10 h-10 text-slate-300 mx-auto" />
+                    <p className="text-sm font-bold text-slate-700">
+                      {menuSearchQuery ? `Tidak ada menu dengan kata kunci "${menuSearchQuery}"` : 'Belum ada menu terjual pada parameter tanggal ini'}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {menuSearchQuery ? 'Coba gunakan kata kunci pencarian yang lain.' : 'Silakan pilih parameter tanggal (Hari Ini, Kemarin, atau pilih tanggal) di atas.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                    {soldMenuItemsSummary.items.map((menu, index) => {
+                      const isTop3 = index < 3 && menuSortBy === 'qty_desc';
+                      return (
+                        <div
+                          key={menu.name}
+                          className="p-3.5 rounded-2xl border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-amber-200 hover:shadow-xs transition-all space-y-2.5"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span
+                                className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
+                                  index === 0 && isTop3
+                                    ? 'bg-amber-400 text-amber-950 ring-2 ring-amber-300'
+                                    : index === 1 && isTop3
+                                    ? 'bg-slate-300 text-slate-800 ring-2 ring-slate-200'
+                                    : index === 2 && isTop3
+                                    ? 'bg-amber-700/80 text-amber-100 ring-2 ring-amber-600/30'
+                                    : 'bg-slate-200/80 text-slate-600'
+                                }`}
+                              >
+                                #{index + 1}
+                              </span>
+
+                              <div className="min-w-0">
+                                <h4 className="font-extrabold text-sm text-slate-900 truncate">
+                                  {menu.name}
+                                </h4>
+                                <span className="text-[11px] text-slate-500 font-medium">
+                                  Dari {menu.transactionsCount} transaksi
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <span className="font-black text-base text-[#3d1e0f] font-mono block">
+                                {menu.quantity} <span className="text-xs font-bold text-slate-600">Porsi</span>
+                              </span>
+                              {menu.totalRevenue > 0 && (
+                                <span className="text-xs font-bold text-emerald-700 font-mono block">
+                                  {formatRupiah(menu.totalRevenue)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Progress Bar (% of total) */}
+                          <div className="space-y-1">
+                            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${
+                                  index === 0
+                                    ? 'bg-gradient-to-r from-amber-500 to-amber-600'
+                                    : 'bg-gradient-to-r from-[#3d1e0f] to-amber-900'
+                                }`}
+                                style={{ width: `${Math.min(100, Math.max(5, menu.percentage))}%` }}
+                              />
+                            </div>
+                            <div className="flex justify-between text-[10px] text-slate-400 font-semibold">
+                              <span>Kontribusi Penjualan:</span>
+                              <span className="font-mono text-slate-600 font-bold">{menu.percentage}% dari total porsi</span>
+                            </div>
+                          </div>
+
+                          {/* Variant Details if any */}
+                          {Object.keys(menu.variants).length > 0 && (
+                            <div className="pt-1.5 border-t border-slate-200/60 flex flex-wrap gap-1">
+                              {Object.entries(menu.variants).map(([vName, vQty]) => (
+                                <span
+                                  key={vName}
+                                  className="px-2 py-0.5 rounded-lg bg-white border border-slate-200 text-[10px] text-slate-700 font-semibold"
+                                >
+                                  {vName}: <strong>{vQty}</strong>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Tab 1: Pemasukan (Sales) */}
             {activeDetailTab === 'sales' && (
@@ -1167,10 +1471,6 @@ export default function DailyReportsPage() {
               {/* Section 3: Rekapitulasi Kas Fisik Laci */}
               <div className="space-y-1 border-b border-dashed border-slate-400 pb-3 bg-amber-50/80 p-2 rounded-xl">
                 <p className="font-extrabold text-[#3d1e0f] text-[11px]">REKAP KAS FISIK LACI:</p>
-                <div className="flex justify-between text-[11px]">
-                  <span>Modal Awal Kas:</span>
-                  <span>{formatRupiah(shiftMetrics.defaultInitialCash)}</span>
-                </div>
                 <div className="flex justify-between text-[11px] text-emerald-800">
                   <span>(+) Uang Tunai Masuk:</span>
                   <span>+{formatRupiah(shiftMetrics.cashSales)}</span>
@@ -1290,7 +1590,6 @@ export default function DailyReportsPage() {
                 <div>Penjualan Tunai: <strong className="text-emerald-700">{formatRupiah(shiftMetrics.cashSales)}</strong></div>
                 <div>Non-Tunai (QRIS/Trf): <strong className="text-slate-900">{formatRupiah(shiftMetrics.nonCashSales)}</strong></div>
                 <div>Belanja Kas Toko: <strong className="text-rose-700">{formatRupiah(shiftMetrics.branchCashExpenses)}</strong></div>
-                <div>Modal Awal Kas: <strong className="text-slate-900">{formatRupiah(initialCashInput)}</strong></div>
               </div>
             </div>
 
@@ -1299,7 +1598,7 @@ export default function DailyReportsPage() {
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-400">Kas Yang Diharapkan (Expected):</span>
                   <span className="font-bold font-mono text-amber-300">
-                    {formatRupiah(initialCashInput + shiftMetrics.cashSales - shiftMetrics.branchCashExpenses)}
+                    {formatRupiah(shiftMetrics.cashSales - shiftMetrics.branchCashExpenses)}
                   </span>
                 </div>
               </div>
@@ -1320,7 +1619,7 @@ export default function DailyReportsPage() {
 
               {actualCashInput !== '' && (
                 (() => {
-                  const expected = initialCashInput + shiftMetrics.cashSales - shiftMetrics.branchCashExpenses;
+                  const expected = shiftMetrics.cashSales - shiftMetrics.branchCashExpenses;
                   const diff = Number(actualCashInput) - expected;
                   return (
                     <div className={`p-3 rounded-2xl text-xs font-bold ${diff === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
