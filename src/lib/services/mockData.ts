@@ -31,7 +31,7 @@ export const MOCK_BRANCHES: Branch[] = [
     address: 'Jl. Cidodol Raya No. 12, Kebayoran Lama, Jakarta Selatan',
     phone: '',
     is_active: true,
-    initial_cash_default: 100000,
+    initial_cash_default: 0,
     created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
   },
   {
@@ -41,7 +41,7 @@ export const MOCK_BRANCHES: Branch[] = [
     address: 'Jl. Ulujami Raya No. 45, Pesanggrahan, Jakarta Selatan',
     phone: '',
     is_active: true,
-    initial_cash_default: 100000,
+    initial_cash_default: 0,
     created_at: new Date(Date.now() - 25 * 86400000).toISOString(),
   },
 ];

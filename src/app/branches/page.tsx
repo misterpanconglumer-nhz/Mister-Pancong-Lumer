@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Branch, UserProfile, UserRole } from '@/types';
 import { DataService } from '@/lib/services/dataService';
+import { formatRupiah } from '@/lib/utils/formatters';
 import { Store, Plus, Users, MapPin, Phone, Edit, Trash2, UserPlus, Lock, Key, CheckCircle2, ShieldCheck } from 'lucide-react';
 
 export default function BranchesPage() {
@@ -26,7 +27,7 @@ export default function BranchesPage() {
   const [address, setAddress] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
   const [isActive, setIsActive] = useState<boolean>(true);
-  const [initialCash, setInitialCash] = useState<string>('100000');
+  const [initialCash, setInitialCash] = useState<string>('0');
 
   // Form states for User
   const [empName, setEmpName] = useState<string>('');
@@ -78,7 +79,7 @@ export default function BranchesPage() {
     setAddress('');
     setPhone('');
     setIsActive(true);
-    setInitialCash('100000');
+    setInitialCash('0');
     setShowAddBranchModal(true);
   };
 
@@ -89,7 +90,7 @@ export default function BranchesPage() {
     setAddress(b.address || '');
     setPhone(b.phone || '');
     setIsActive(b.is_active);
-    setInitialCash(String(b.initial_cash_default || 100000));
+    setInitialCash(String(b.initial_cash_default ?? 0));
     setShowAddBranchModal(true);
   };
 
@@ -104,7 +105,7 @@ export default function BranchesPage() {
       address,
       phone,
       is_active: isActive,
-      initial_cash_default: Number(initialCash) || 100000,
+      initial_cash_default: Number(initialCash) || 0,
     });
 
     setShowAddBranchModal(false);
@@ -227,6 +228,13 @@ export default function BranchesPage() {
                     <span>{b.address}</span>
                   </div>
                 )}
+
+                <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100">
+                  <span className="text-slate-500 text-[11px]">Kas Toko / Modal Laci:</span>
+                  <span className="font-mono font-bold text-slate-800">
+                    {b.initial_cash_default ? formatRupiah(b.initial_cash_default) : 'Rp 0 (Tidak ada)'}
+                  </span>
+                </div>
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
@@ -362,6 +370,22 @@ export default function BranchesPage() {
                     <option value="false">Non-aktif</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Kas Toko / Modal Kas Laci Default (Rp)
+                  <span className="text-[10px] text-slate-400 font-normal ml-1.5">(Isi 0 jika tidak ada modal kas toko)</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={initialCash}
+                  onChange={(e) => setInitialCash(e.target.value)}
+                  placeholder="0"
+                  className="w-full px-3 py-2.5 border rounded-xl text-xs font-bold font-mono text-slate-900"
+                />
               </div>
 
               <div>

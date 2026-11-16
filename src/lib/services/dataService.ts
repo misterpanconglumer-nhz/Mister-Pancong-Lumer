@@ -138,7 +138,7 @@ export const DataService = {
         address: branch.address || '',
         phone: branch.phone || '',
         is_active: branch.is_active ?? true,
-        initial_cash_default: branch.initial_cash_default || 100000,
+        initial_cash_default: Number(branch.initial_cash_default) || 0,
         created_at: new Date().toISOString(),
       };
       branches.push(updatedBranch);

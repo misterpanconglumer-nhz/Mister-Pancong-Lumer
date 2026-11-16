@@ -244,9 +244,9 @@ export default function DailyReportsPage() {
       .reduce((sum, e) => sum + e.amount, 0);
     const totalExpenseItems = filteredExpenses.length;
 
-    // Modal awal dihilangkan sesuai permintaan: kas fisik laci murni dari Tunai Masuk dikurangi Belanja Toko
-    const defaultInitialCash = 0;
-    const expectedDrawerCash = cashSales - branchCashExpenses;
+    // Modal kas toko: default 0 atau disetting per cabang
+    const defaultInitialCash = currentBranchObj?.initial_cash_default ?? 0;
+    const expectedDrawerCash = defaultInitialCash + cashSales - branchCashExpenses;
     const netTurnover = grossSales - totalExpenses;
 
     return {
@@ -262,7 +262,7 @@ export default function DailyReportsPage() {
       expectedDrawerCash,
       netTurnover,
     };
-  }, [filteredSales, filteredExpenses]);
+  }, [filteredSales, filteredExpenses, currentBranchObj]);
 
   // Rekapitulasi Penjualan Menu (Menu apa saja yang terjual dan berapa banyak)
   const soldMenuItemsSummary = useMemo(() => {
@@ -408,9 +408,10 @@ export default function DailyReportsPage() {
       : new Date().toISOString().split('T')[0];
     const targetBranch = filterBranchId !== 'all' ? filterBranchId : (activeBranch?.id || branches[0]?.id || 'd9ec11ac-c42f-4904-b932-20abbe83e89e');
 
+    const branchModal = branches.find((b) => b.id === targetBranch)?.initial_cash_default ?? 0;
     setReportDate(targetDate);
     setReportBranchId(targetBranch);
-    setInitialCashInput(0);
+    setInitialCashInput(branchModal);
     setActualCashInput('');
     setReportNotes('');
     setShowFormModal(true);
@@ -423,7 +424,8 @@ export default function DailyReportsPage() {
 
     const targetBranchObj = branches.find((b) => b.id === reportBranchId) || activeBranch;
     const actualCashNum = Number(actualCashInput) || 0;
-    const expectedCash = shiftMetrics.cashSales - shiftMetrics.branchCashExpenses;
+    const modalKasNum = Number(initialCashInput) || 0;
+    const expectedCash = modalKasNum + shiftMetrics.cashSales - shiftMetrics.branchCashExpenses;
     const cashDiff = actualCashNum - expectedCash;
 
     setIsSubmitting(true);
@@ -439,7 +441,7 @@ export default function DailyReportsPage() {
         cash_sales: shiftMetrics.cashSales,
         non_cash_sales: shiftMetrics.nonCashSales,
         branch_cash_expenses: shiftMetrics.branchCashExpenses,
-        initial_cash_balance: 0,
+        initial_cash_balance: modalKasNum,
         expected_cash: expectedCash,
         actual_cash: actualCashNum,
         cash_difference: cashDiff,
@@ -910,14 +912,22 @@ export default function DailyReportsPage() {
                 {formatRupiah(shiftMetrics.expectedDrawerCash)}
               </div>
               <div className="mt-3 pt-3 border-t border-amber-900/60 text-[10px] text-amber-200/90 space-y-0.5">
+                {shiftMetrics.defaultInitialCash > 0 && (
+                  <div className="flex justify-between">
+                    <span>(+) Kas Toko (Modal):</span>
+                    <span className="font-mono font-bold text-amber-200">+{formatRupiah(shiftMetrics.defaultInitialCash)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>(+) Tunai Masuk:</span>
                   <span className="font-mono font-bold text-emerald-300">+{formatRupiah(shiftMetrics.cashSales)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>(-) Belanja Kas Toko:</span>
-                  <span className="font-mono font-bold text-rose-300">-{formatRupiah(shiftMetrics.branchCashExpenses)}</span>
-                </div>
+                {shiftMetrics.branchCashExpenses > 0 && (
+                  <div className="flex justify-between">
+                    <span>(-) Belanja Kas Toko:</span>
+                    <span className="font-mono font-bold text-rose-300">-{formatRupiah(shiftMetrics.branchCashExpenses)}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1751,11 +1761,27 @@ export default function DailyReportsPage() {
             </div>
 
             <form onSubmit={handleSubmitClosingReport} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-800 block mb-1">
+                  Kas Toko / Modal Kas Awal Laci (Rp)
+                  <span className="text-[10px] text-slate-400 font-normal ml-1.5">(Isi 0 jika tidak ada modal kas)</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={initialCashInput}
+                  onChange={(e) => setInitialCashInput(Number(e.target.value) || 0)}
+                  placeholder="0"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
+                />
+              </div>
+
               <div className="p-3 bg-slate-900 text-white rounded-2xl space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-400">Kas Yang Diharapkan (Expected):</span>
                   <span className="font-bold font-mono text-amber-300">
-                    {formatRupiah(shiftMetrics.cashSales - shiftMetrics.branchCashExpenses)}
+                    {formatRupiah((initialCashInput || 0) + shiftMetrics.cashSales - shiftMetrics.branchCashExpenses)}
                   </span>
                 </div>
               </div>
