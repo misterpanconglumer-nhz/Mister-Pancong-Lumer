@@ -37,7 +37,7 @@ import {
 import { useApp } from '@/context/AppContext';
 
 export default function DailyReportsPage() {
-  const { user, activeBranch, branches, isOwner, isAdminPusat, isAdminCabang } = useAuth();
+  const { user, activeBranch, branches, setActiveBranch, isOwner, isAdminPusat, isAdminCabang } = useAuth();
   const { settings } = useApp();
 
   const isEmployee = !isOwner && !isAdminPusat;
@@ -70,7 +70,7 @@ export default function DailyReportsPage() {
   });
   const [filterEndDate, setFilterEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [filterMonth, setFilterMonth] = useState<string>(new Date().toISOString().slice(0, 7));
-  const [filterBranchId, setFilterBranchId] = useState<string>(isEmployee ? (activeBranch?.id || 'all') : 'all');
+  const [filterBranchId, setFilterBranchId] = useState<string>(activeBranch?.id || 'all');
   const [filterEmployeeId, setFilterEmployeeId] = useState<string>(isEmployee ? (user?.id || 'all') : 'all');
 
   // Modals
@@ -110,13 +110,19 @@ export default function DailyReportsPage() {
     fetchData();
   }, [activeBranch]);
 
-  // Keep branch & user defaults in sync if role is employee
+  // Synchronize filterBranchId whenever activeBranch changes (from top navbar)
+  useEffect(() => {
+    if (activeBranch?.id) {
+      setFilterBranchId(activeBranch.id);
+    }
+  }, [activeBranch?.id]);
+
+  // Keep employee filter in sync if user is employee
   useEffect(() => {
     if (isEmployee) {
-      if (activeBranch?.id) setFilterBranchId(activeBranch.id);
       if (user?.id) setFilterEmployeeId(user.id);
     }
-  }, [isEmployee, activeBranch, user]);
+  }, [isEmployee, user]);
 
   // Determine current effective employee target
   const targetEmployeeObj = useMemo(() => {
@@ -148,8 +154,12 @@ export default function DailyReportsPage() {
       }
 
       // Filter by Branch
-      if (filterBranchId !== 'all' && s.branch_id && s.branch_id !== filterBranchId) {
-        return false;
+      if (filterBranchId !== 'all') {
+        const matchId = s.branch_id === filterBranchId;
+        const matchName = currentBranchObj && (s.branch_name === currentBranchObj.name || s.branch_id === currentBranchObj.code);
+        if (!matchId && !matchName) {
+          return false;
+        }
       }
 
       // Filter by Employee / Seller
@@ -188,8 +198,12 @@ export default function DailyReportsPage() {
       }
 
       // Filter by Branch
-      if (filterBranchId !== 'all' && e.branch_id && e.branch_id !== filterBranchId) {
-        return false;
+      if (filterBranchId !== 'all') {
+        const matchId = e.branch_id === filterBranchId;
+        const matchName = currentBranchObj && (e.branch_name === currentBranchObj.name || e.branch_id === currentBranchObj.code);
+        if (!matchId && !matchName) {
+          return false;
+        }
       }
 
       // Filter by Employee / Creator
@@ -351,7 +365,11 @@ export default function DailyReportsPage() {
   // Filtered closing reports (Arsip Tutup Kas)
   const filteredReports = useMemo(() => {
     return reports.filter((r) => {
-      if (filterBranchId !== 'all' && r.branch_id !== filterBranchId) return false;
+      if (filterBranchId !== 'all') {
+        const matchId = r.branch_id === filterBranchId;
+        const matchName = currentBranchObj && (r.branch_name === currentBranchObj.name || r.branch_id === currentBranchObj.code);
+        if (!matchId && !matchName) return false;
+      }
       if (filterMode === 'date') {
         if (filterDate && r.report_date !== filterDate) return false;
       } else if (filterMode === 'range') {
@@ -595,7 +613,14 @@ export default function DailyReportsPage() {
                 <Store className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                 <select
                   value={filterBranchId}
-                  onChange={(e) => setFilterBranchId(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFilterBranchId(val);
+                    if (val !== 'all') {
+                      const matched = branches.find((b) => b.id === val);
+                      if (matched && setActiveBranch) setActiveBranch(matched);
+                    }
+                  }}
                   className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none"
                 >
                   <option value="all">Semua Cabang</option>
@@ -862,15 +887,8 @@ export default function DailyReportsPage() {
               <div className="mt-2 text-2xl sm:text-3xl font-black tracking-tight font-mono">
                 {formatRupiah(shiftMetrics.totalExpenses)}
               </div>
-              <div className="mt-3 pt-3 border-t border-rose-500/40 grid grid-cols-2 gap-2 text-[11px] text-rose-100">
-                <div>
-                  <span className="opacity-75 block text-[10px]">🏪 Kas Toko (Laci):</span>
-                  <strong className="font-mono text-xs text-white">{formatRupiah(shiftMetrics.branchCashExpenses)}</strong>
-                </div>
-                <div>
-                  <span className="opacity-75 block text-[10px]">👤 Uang Pribadi:</span>
-                  <strong className="font-mono text-xs text-white">{formatRupiah(shiftMetrics.personalExpenses)}</strong>
-                </div>
+              <div className="mt-3 pt-3 border-t border-rose-500/40 text-[11px] text-rose-100/90 font-medium">
+                Total belanja operasional & bahan baku cabang
               </div>
             </div>
 

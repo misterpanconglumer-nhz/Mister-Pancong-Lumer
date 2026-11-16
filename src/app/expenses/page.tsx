@@ -8,7 +8,7 @@ import { formatRupiah, formatDate } from '@/lib/utils/formatters';
 import { Wallet, Plus, Edit, Trash2, Tag, Store, Check, X, Calendar, Filter, RotateCcw, Search } from 'lucide-react';
 
 export default function ExpensesPage() {
-  const { user, activeBranch, branches, isOwner, isAdminPusat, isAdminCabang } = useAuth();
+  const { user, activeBranch, branches, setActiveBranch, isOwner, isAdminPusat, isAdminCabang } = useAuth();
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -26,7 +26,7 @@ export default function ExpensesPage() {
   const [filterMode, setFilterMode] = useState<'date' | 'month'>('date');
   const [filterDate, setFilterDate] = useState<string>(todayStr); // DEFAULT HARI INI
   const [filterMonth, setFilterMonth] = useState<string>(thisMonthStr);
-  const [filterBranchId, setFilterBranchId] = useState<string>('all');
+  const [filterBranchId, setFilterBranchId] = useState<string>(activeBranch?.id || 'all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Form states
@@ -53,7 +53,14 @@ export default function ExpensesPage() {
 
   useEffect(() => {
     fetchExpenses();
-  }, []);
+  }, [activeBranch]);
+
+  // Sync branch filter when activeBranch changes from navbar
+  useEffect(() => {
+    if (activeBranch?.id) {
+      setFilterBranchId(activeBranch.id);
+    }
+  }, [activeBranch?.id]);
 
   const handleSetToday = () => {
     setFilterMode('date');
@@ -162,8 +169,11 @@ export default function ExpensesPage() {
     if (!isOwner && !isAdminPusat && activeBranch && e.branch_id !== activeBranch.id) {
       return false;
     }
-    if (filterBranchId !== 'all' && e.branch_id !== filterBranchId) {
-      return false;
+    if (filterBranchId !== 'all') {
+      const bObj = branches.find((b) => b.id === filterBranchId);
+      const matchId = e.branch_id === filterBranchId;
+      const matchName = bObj && (e.branch_name === bObj.name || e.branch_id === bObj.code);
+      if (!matchId && !matchName) return false;
     }
 
     // 2. Date / Month parameter filter
@@ -265,7 +275,14 @@ export default function ExpensesPage() {
             <div className="w-full sm:w-56">
               <select
                 value={filterBranchId}
-                onChange={(e) => setFilterBranchId(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFilterBranchId(val);
+                  if (val !== 'all') {
+                    const matched = branches.find((b) => b.id === val);
+                    if (matched && setActiveBranch) setActiveBranch(matched);
+                  }
+                }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
               >
                 <option value="all">Semua Cabang</option>

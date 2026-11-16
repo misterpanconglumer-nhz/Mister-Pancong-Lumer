@@ -9,13 +9,13 @@ import { Search, Filter, Receipt, Ban, Eye, Printer, Calendar, Store, User, Rota
 import ReceiptModal from '@/components/pos/ReceiptModal';
 
 export default function SalesHistoryPage() {
-  const { user, activeBranch, branches, isOwner, isAdminPusat, isAdminCabang } = useAuth();
+  const { user, activeBranch, branches, setActiveBranch, isOwner, isAdminPusat, isAdminCabang } = useAuth();
   const isKasir = !isOwner && !isAdminPusat;
 
   const [sales, setSales] = useState<SaleTransaction[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [filterBranchId, setFilterBranchId] = useState<string>('all');
+  const [filterBranchId, setFilterBranchId] = useState<string>(activeBranch?.id || 'all');
   const [filterDateMode, setFilterDateMode] = useState<'single' | 'range'>('single');
   const [filterDate, setFilterDate] = useState<string>('');
   const [filterStartDate, setFilterStartDate] = useState<string>(() => {
@@ -50,7 +50,14 @@ export default function SalesHistoryPage() {
 
   useEffect(() => {
     fetchSales();
-  }, []);
+  }, [activeBranch]);
+
+  // Sync branch filter when activeBranch changes from navbar
+  useEffect(() => {
+    if (activeBranch?.id) {
+      setFilterBranchId(activeBranch.id);
+    }
+  }, [activeBranch?.id]);
 
   // Preset Date Handlers & Strings
   const todayStr = new Date().toISOString().split('T')[0];
@@ -98,8 +105,11 @@ export default function SalesHistoryPage() {
       return false;
     }
 
-    if (filterBranchId !== 'all' && s.branch_id !== filterBranchId) {
-      return false;
+    if (filterBranchId !== 'all') {
+      const bObj = branches.find((b) => b.id === filterBranchId);
+      const matchId = s.branch_id === filterBranchId;
+      const matchName = bObj && (s.branch_name === bObj.name || s.branch_id === bObj.code);
+      if (!matchId && !matchName) return false;
     }
 
     // Filter by single date or date range
@@ -467,7 +477,14 @@ export default function SalesHistoryPage() {
               <div className="w-full sm:w-64">
                 <select
                   value={filterBranchId}
-                  onChange={(e) => setFilterBranchId(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFilterBranchId(val);
+                    if (val !== 'all') {
+                      const matched = branches.find((b) => b.id === val);
+                      if (matched && setActiveBranch) setActiveBranch(matched);
+                    }
+                  }}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3d1e0f]"
                 >
                   <option value="all">Semua Cabang</option>
