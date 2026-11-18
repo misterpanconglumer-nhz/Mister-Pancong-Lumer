@@ -227,12 +227,18 @@ export default function DailyReportsPage() {
   // Aggregated Metrics for the current view
   const shiftMetrics = useMemo(() => {
     const grossSales = filteredSales.reduce((sum, s) => sum + s.total_amount, 0);
-    const cashSales = filteredSales
-      .filter((s) => s.payment_method === 'tunai')
-      .reduce((sum, s) => sum + s.total_amount, 0);
-    const nonCashSales = filteredSales
-      .filter((s) => s.payment_method !== 'tunai')
-      .reduce((sum, s) => sum + s.total_amount, 0);
+
+    // Breakdown by payment methods: Cash (Tunai), QRIS, Transfer / Lainnya
+    const cashTx = filteredSales.filter((s) => s.payment_method === 'tunai');
+    const qrisTx = filteredSales.filter((s) => s.payment_method === 'qris');
+    const transferTx = filteredSales.filter((s) => s.payment_method === 'transfer');
+    const otherTx = filteredSales.filter((s) => !['tunai', 'qris', 'transfer'].includes(s.payment_method));
+
+    const cashSales = cashTx.reduce((sum, s) => sum + s.total_amount, 0);
+    const qrisSales = qrisTx.reduce((sum, s) => sum + s.total_amount, 0);
+    const transferSales = transferTx.reduce((sum, s) => sum + s.total_amount, 0);
+    const otherSales = otherTx.reduce((sum, s) => sum + s.total_amount, 0);
+    const nonCashSales = qrisSales + transferSales + otherSales;
     const totalTransactions = filteredSales.length;
 
     const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -252,6 +258,13 @@ export default function DailyReportsPage() {
     return {
       grossSales,
       cashSales,
+      cashCount: cashTx.length,
+      qrisSales,
+      qrisCount: qrisTx.length,
+      transferSales,
+      transferCount: transferTx.length,
+      otherSales,
+      otherCount: otherTx.length,
       nonCashSales,
       totalTransactions,
       totalExpenses,
@@ -860,14 +873,21 @@ export default function DailyReportsPage() {
               <div className="mt-2 text-2xl sm:text-3xl font-black tracking-tight font-mono">
                 {formatRupiah(shiftMetrics.grossSales)}
               </div>
-              <div className="mt-3 pt-3 border-t border-emerald-500/40 grid grid-cols-2 gap-2 text-[11px] text-emerald-100">
+              <div className="mt-3 pt-3 border-t border-emerald-500/40 grid grid-cols-3 gap-2 text-[11px] text-emerald-100">
                 <div>
-                  <span className="opacity-75 block text-[10px]">💵 Tunai (Cash):</span>
+                  <span className="opacity-80 block text-[10px]">💵 Tunai:</span>
                   <strong className="font-mono text-xs text-white">{formatRupiah(shiftMetrics.cashSales)}</strong>
+                  <span className="text-[9px] block text-emerald-200/80">{shiftMetrics.cashCount} TRX</span>
                 </div>
                 <div>
-                  <span className="opacity-75 block text-[10px]">📱 QRIS / Non-Tunai:</span>
-                  <strong className="font-mono text-xs text-white">{formatRupiah(shiftMetrics.nonCashSales)}</strong>
+                  <span className="opacity-80 block text-[10px]">📱 QRIS:</span>
+                  <strong className="font-mono text-xs text-white">{formatRupiah(shiftMetrics.qrisSales)}</strong>
+                  <span className="text-[9px] block text-emerald-200/80">{shiftMetrics.qrisCount} TRX</span>
+                </div>
+                <div>
+                  <span className="opacity-80 block text-[10px]">🏦 Transfer:</span>
+                  <strong className="font-mono text-xs text-white">{formatRupiah(shiftMetrics.transferSales + shiftMetrics.otherSales)}</strong>
+                  <span className="text-[9px] block text-emerald-200/80">{shiftMetrics.transferCount + shiftMetrics.otherCount} TRX</span>
                 </div>
               </div>
             </div>
@@ -931,6 +951,112 @@ export default function DailyReportsPage() {
               </div>
             </div>
 
+          </div>
+
+          {/* Rincian Pendapatan Menurut Metode Pembayaran (Cash / QRIS / Transfer) */}
+          <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-[#3d1e0f] flex items-center justify-center font-bold">
+                  <DollarSign className="w-4 h-4 text-amber-700" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900">
+                    Rincian Pendapatan Menurut Metode Pembayaran
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Rekap pemasukan berdasarkan Tunai (Cash), QRIS, dan Transfer Bank / Lainnya
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <span className="text-xs text-slate-500">Total Omzet:</span>
+                <span className="px-3 py-1 rounded-xl bg-emerald-50 border border-emerald-200 font-mono font-black text-xs text-emerald-900">
+                  {formatRupiah(shiftMetrics.grossSales)}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+              {/* 1. Cash / Tunai */}
+              <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                      <span className="text-sm">💵</span> Transaksi Tunai (Cash)
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-200/80 text-emerald-900 font-mono">
+                      {shiftMetrics.cashCount} TRX
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xl font-black font-mono text-emerald-950">
+                    {formatRupiah(shiftMetrics.cashSales)}
+                  </div>
+                  <p className="text-[10px] text-emerald-700 mt-0.5 font-medium">
+                    Uang tunai fisik diterima kasir & masuk laci kas
+                  </p>
+                </div>
+                <div className="mt-3 pt-2.5 border-t border-emerald-200/60 flex items-center justify-between text-[11px] text-emerald-800 font-medium">
+                  <span>Kontribusi Omzet:</span>
+                  <span className="font-extrabold font-mono">
+                    {shiftMetrics.grossSales > 0 ? ((shiftMetrics.cashSales / shiftMetrics.grossSales) * 100).toFixed(1) : 0}%
+                  </span>
+                </div>
+              </div>
+
+              {/* 2. QRIS */}
+              <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200/80 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                      <span className="text-sm">📱</span> Transaksi QRIS
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-200/80 text-blue-900 font-mono">
+                      {shiftMetrics.qrisCount} TRX
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xl font-black font-mono text-blue-950">
+                    {formatRupiah(shiftMetrics.qrisSales)}
+                  </div>
+                  <p className="text-[10px] text-blue-700 mt-0.5 font-medium">
+                    Pembayaran digital melalui scan barcode QRIS
+                  </p>
+                </div>
+                <div className="mt-3 pt-2.5 border-t border-blue-200/60 flex items-center justify-between text-[11px] text-blue-800 font-medium">
+                  <span>Kontribusi Omzet:</span>
+                  <span className="font-extrabold font-mono">
+                    {shiftMetrics.grossSales > 0 ? ((shiftMetrics.qrisSales / shiftMetrics.grossSales) * 100).toFixed(1) : 0}%
+                  </span>
+                </div>
+              </div>
+
+              {/* 3. Transfer / Lainnya */}
+              <div className="p-4 rounded-2xl bg-purple-50/70 border border-purple-200/80 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                      <span className="text-sm">🏦</span> Transfer / Lainnya
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-200/80 text-purple-900 font-mono">
+                      {shiftMetrics.transferCount + shiftMetrics.otherCount} TRX
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xl font-black font-mono text-purple-950">
+                    {formatRupiah(shiftMetrics.transferSales + shiftMetrics.otherSales)}
+                  </div>
+                  <p className="text-[10px] text-purple-700 mt-0.5 font-medium">
+                    Pembayaran transfer rekening bank / metode lainnya
+                  </p>
+                </div>
+                <div className="mt-3 pt-2.5 border-t border-purple-200/60 flex items-center justify-between text-[11px] text-purple-800 font-medium">
+                  <span>Kontribusi Omzet:</span>
+                  <span className="font-extrabold font-mono">
+                    {shiftMetrics.grossSales > 0 ? (((shiftMetrics.transferSales + shiftMetrics.otherSales) / shiftMetrics.grossSales) * 100).toFixed(1) : 0}%
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Interactive Tabs for Details */}
@@ -1609,8 +1735,12 @@ export default function DailyReportsPage() {
                   <span className="font-bold">{formatRupiah(shiftMetrics.cashSales)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Non-Tunai (QRIS/Trf):</span>
-                  <span className="font-bold">{formatRupiah(shiftMetrics.nonCashSales)}</span>
+                  <span>Penerimaan QRIS:</span>
+                  <span className="font-bold">{formatRupiah(shiftMetrics.qrisSales)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Transfer / Lainnya:</span>
+                  <span className="font-bold">{formatRupiah(shiftMetrics.transferSales + shiftMetrics.otherSales)}</span>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-dotted border-slate-300 font-extrabold text-[12px]">
                   <span>TOTAL OMZET:</span>
@@ -1751,11 +1881,12 @@ export default function DailyReportsPage() {
               <p className="font-bold text-[#3d1e0f]">
                 Rekap Data Penjualan & Pengeluaran ({formatDate(reportDate)}):
               </p>
-              <div className="grid grid-cols-2 gap-2 text-slate-700 pt-1">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-slate-700 pt-1">
                 <div>Omzet Penjualan: <strong className="text-slate-900">{formatRupiah(shiftMetrics.grossSales)}</strong></div>
                 <div>Jumlah Transaksi: <strong className="text-slate-900">{shiftMetrics.totalTransactions} TRX</strong></div>
-                <div>Penjualan Tunai: <strong className="text-emerald-700">{formatRupiah(shiftMetrics.cashSales)}</strong></div>
-                <div>Non-Tunai (QRIS/Trf): <strong className="text-slate-900">{formatRupiah(shiftMetrics.nonCashSales)}</strong></div>
+                <div>Tunai (Cash): <strong className="text-emerald-700">{formatRupiah(shiftMetrics.cashSales)}</strong></div>
+                <div>QRIS: <strong className="text-blue-700">{formatRupiah(shiftMetrics.qrisSales)}</strong></div>
+                <div>Transfer: <strong className="text-purple-700">{formatRupiah(shiftMetrics.transferSales + shiftMetrics.otherSales)}</strong></div>
                 <div>Belanja Kas Toko: <strong className="text-rose-700">{formatRupiah(shiftMetrics.branchCashExpenses)}</strong></div>
               </div>
             </div>

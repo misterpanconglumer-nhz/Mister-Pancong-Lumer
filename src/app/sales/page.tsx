@@ -138,6 +138,29 @@ export default function SalesHistoryPage() {
     .filter((s) => s.status === 'completed')
     .reduce((acc, curr) => acc + curr.total_amount, 0);
 
+  // Breakdown Pembayaran: Tunai, QRIS, Transfer / Lainnya
+  const paymentBreakdown = useMemo(() => {
+    const completed = filteredSales.filter((s) => s.status === 'completed');
+    const cash = completed.filter((s) => s.payment_method === 'tunai');
+    const qris = completed.filter((s) => s.payment_method === 'qris');
+    const transfer = completed.filter((s) => s.payment_method === 'transfer');
+    const other = completed.filter((s) => !['tunai', 'qris', 'transfer'].includes(s.payment_method));
+
+    const cashTotal = cash.reduce((sum, s) => sum + s.total_amount, 0);
+    const qrisTotal = qris.reduce((sum, s) => sum + s.total_amount, 0);
+    const transferTotal = transfer.reduce((sum, s) => sum + s.total_amount, 0);
+    const otherTotal = other.reduce((sum, s) => sum + s.total_amount, 0);
+
+    return {
+      cashTotal,
+      cashCount: cash.length,
+      qrisTotal,
+      qrisCount: qris.length,
+      transferTotal: transferTotal + otherTotal,
+      transferCount: transfer.length + other.length,
+    };
+  }, [filteredSales]);
+
   // Rekapitulasi Menu Terjual (Berapa banyak menu yang laku per parameter tanggal)
   const soldMenuItemsSummary = React.useMemo(() => {
     const map: {
@@ -286,11 +309,24 @@ export default function SalesHistoryPage() {
 
           {isKasir ? (
             (filterDateMode === 'single' ? filterDate : (filterStartDate || filterEndDate)) ? (
-              <div className="px-3.5 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-extrabold text-xs flex items-center gap-1.5 animate-in fade-in">
-                <DollarSign className="w-4 h-4 text-emerald-600" />
-                <span>
-                  Omzet ({dateFilterLabel}): <strong>{formatRupiah(totalOmzetFiltered)}</strong>
-                </span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <div className="px-3.5 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-extrabold text-xs flex items-center gap-1.5 animate-in fade-in">
+                  <DollarSign className="w-4 h-4 text-emerald-600" />
+                  <span>
+                    Omzet ({dateFilterLabel}): <strong>{formatRupiah(totalOmzetFiltered)}</strong>
+                  </span>
+                </div>
+                <div className="hidden lg:flex items-center gap-1">
+                  <span className="px-2.5 py-1.5 rounded-xl bg-emerald-100/70 border border-emerald-200 text-emerald-900 text-[11px] font-bold">
+                    💵 {formatRupiah(paymentBreakdown.cashTotal)}
+                  </span>
+                  <span className="px-2.5 py-1.5 rounded-xl bg-blue-100/70 border border-blue-200 text-blue-900 text-[11px] font-bold">
+                    📱 {formatRupiah(paymentBreakdown.qrisTotal)}
+                  </span>
+                  <span className="px-2.5 py-1.5 rounded-xl bg-purple-100/70 border border-purple-200 text-purple-900 text-[11px] font-bold">
+                    🏦 {formatRupiah(paymentBreakdown.transferTotal)}
+                  </span>
+                </div>
               </div>
             ) : (
               <div
@@ -302,11 +338,24 @@ export default function SalesHistoryPage() {
               </div>
             )
           ) : (
-            <div className="px-3.5 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-extrabold text-xs">
-              {(filterDateMode === 'single' ? filterDate : (filterStartDate || filterEndDate))
-                ? `Omzet (${dateFilterLabel}): `
-                : 'Total Omzet Keseluruhan: '}
-              {formatRupiah(totalOmzetFiltered)}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <div className="px-3.5 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-extrabold text-xs">
+                {(filterDateMode === 'single' ? filterDate : (filterStartDate || filterEndDate))
+                  ? `Omzet (${dateFilterLabel}): `
+                  : 'Total Omzet Keseluruhan: '}
+                {formatRupiah(totalOmzetFiltered)}
+              </div>
+              <div className="hidden lg:flex items-center gap-1">
+                <span className="px-2.5 py-1.5 rounded-xl bg-emerald-100/70 border border-emerald-200 text-emerald-900 text-[11px] font-bold">
+                  💵 {formatRupiah(paymentBreakdown.cashTotal)}
+                </span>
+                <span className="px-2.5 py-1.5 rounded-xl bg-blue-100/70 border border-blue-200 text-blue-900 text-[11px] font-bold">
+                  📱 {formatRupiah(paymentBreakdown.qrisTotal)}
+                </span>
+                <span className="px-2.5 py-1.5 rounded-xl bg-purple-100/70 border border-purple-200 text-purple-900 text-[11px] font-bold">
+                  🏦 {formatRupiah(paymentBreakdown.transferTotal)}
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -530,33 +579,48 @@ export default function SalesHistoryPage() {
 
       {/* Banner Khusus Akun Kasir */}
       {isKasir && (
-        <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-3xl text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-amber-700 shrink-0" />
-            <span>
-              {(filterDateMode === 'single' ? filterDate : (filterStartDate || filterEndDate)) ? (
-                <>
-                  Menampilkan data & omzet{' '}
-                  <strong className="text-slate-900">{dateFilterLabel}</strong>
-                  : Total Omzet Terhitung{' '}
-                  <strong className="text-emerald-700 text-sm font-extrabold">{formatRupiah(totalOmzetFiltered)}</strong>
-                </>
-              ) : (
-                <>
-                  Mode Akun Kasir: Total omzet keseluruhan disembunyikan. Silakan klik tombol{' '}
-                  <strong>Hari Ini</strong>, <strong>Kemarin</strong>, atau pilih <strong>Parameter Tanggal</strong> di atas untuk melihat omzet shift Anda.
-                </>
-              )}
-            </span>
+        <div className="p-4 bg-amber-50/70 border border-amber-200/80 rounded-3xl text-xs text-amber-950 flex flex-col gap-2.5 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-amber-700 shrink-0" />
+              <span>
+                {(filterDateMode === 'single' ? filterDate : (filterStartDate || filterEndDate)) ? (
+                  <>
+                    Menampilkan data & omzet <strong className="text-slate-900">{dateFilterLabel}</strong>: Total Omzet Terhitung{' '}
+                    <strong className="text-emerald-700 text-sm font-extrabold">{formatRupiah(totalOmzetFiltered)}</strong>
+                  </>
+                ) : (
+                  <>
+                    Mode Akun Kasir: Total omzet keseluruhan disembunyikan. Silakan klik tombol{' '}
+                    <strong>Hari Ini</strong>, <strong>Kemarin</strong>, atau pilih <strong>Parameter Tanggal</strong> di atas untuk melihat omzet shift Anda.
+                  </>
+                )}
+              </span>
+            </div>
+            {!(filterDateMode === 'single' ? filterDate : (filterStartDate || filterEndDate)) && (
+              <button
+                type="button"
+                onClick={handleSetToday}
+                className="px-3 py-1.5 rounded-xl bg-[#3d1e0f] text-amber-100 font-bold text-xs hover:bg-amber-950 active:scale-95 transition-all self-start sm:self-auto shrink-0"
+              >
+                Tampilkan Hari Ini
+              </button>
+            )}
           </div>
-          {!(filterDateMode === 'single' ? filterDate : (filterStartDate || filterEndDate)) && (
-            <button
-              type="button"
-              onClick={handleSetToday}
-              className="px-3 py-1.5 rounded-xl bg-[#3d1e0f] text-amber-100 font-bold text-xs hover:bg-amber-950 active:scale-95 transition-all self-start sm:self-auto shrink-0"
-            >
-              Tampilkan Hari Ini
-            </button>
+
+          {(filterDateMode === 'single' ? filterDate : (filterStartDate || filterEndDate)) && (
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-200/60 text-[11px]">
+              <span className="text-slate-600 font-semibold">Rincian Pembayaran:</span>
+              <span className="px-2.5 py-1 rounded-xl bg-emerald-100/90 text-emerald-950 font-bold border border-emerald-300">
+                💵 Tunai (Cash): <strong>{formatRupiah(paymentBreakdown.cashTotal)}</strong> ({paymentBreakdown.cashCount} TRX)
+              </span>
+              <span className="px-2.5 py-1 rounded-xl bg-blue-100/90 text-blue-950 font-bold border border-blue-300">
+                📱 QRIS: <strong>{formatRupiah(paymentBreakdown.qrisTotal)}</strong> ({paymentBreakdown.qrisCount} TRX)
+              </span>
+              <span className="px-2.5 py-1 rounded-xl bg-purple-100/90 text-purple-950 font-bold border border-purple-300">
+                🏦 Transfer / Lainnya: <strong>{formatRupiah(paymentBreakdown.transferTotal)}</strong> ({paymentBreakdown.transferCount} TRX)
+              </span>
+            </div>
           )}
         </div>
       )}

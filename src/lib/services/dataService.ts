@@ -858,12 +858,13 @@ export const DataService = {
   },
 
   // 8. ATTENDANCE
-  async getAttendance(branchId?: string, date?: string): Promise<AttendanceRecord[]> {
+  async getAttendance(branchId?: string, date?: string, userId?: string): Promise<AttendanceRecord[]> {
     if (isSupabaseConfigured()) {
       const supabase = createClient();
       let query = supabase.from('attendance').select('*').order('created_at', { ascending: false });
       if (branchId) query = query.eq('branch_id', branchId);
       if (date) query = query.eq('date', date);
+      if (userId) query = query.eq('user_id', userId);
       const { data, error } = await query;
       if (!error && data) {
         const [bList, uList] = await Promise.all([this.getBranches(), this.getUsers()]);
@@ -884,6 +885,7 @@ export const DataService = {
     return list.filter((a) => {
       if (branchId && a.branch_id !== branchId) return false;
       if (date && a.date !== date) return false;
+      if (userId && a.user_id !== userId) return false;
       return true;
     });
   },
