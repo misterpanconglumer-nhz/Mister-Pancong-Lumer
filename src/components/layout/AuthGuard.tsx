@@ -11,11 +11,10 @@ const OWNER_ONLY_PATHS = [
   '/branches',
   '/products',
   '/settings',
-  '/daily-reports',
 ];
 
 export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading, isOwner } = useAuth();
+  const { user, loading, isOwner, isAdminPusat } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -38,11 +37,12 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
       return;
     }
 
-    // Role-based route protection: Penjual/Non-owner accessing owner-only paths
-    if (user && !isOwner && OWNER_ONLY_PATHS.includes(pathname)) {
+    // Role-based route protection: Penjual accessing owner-only paths
+    const isOwnerOrAdmin = isOwner || isAdminPusat;
+    if (user && !isOwnerOrAdmin && OWNER_ONLY_PATHS.includes(pathname)) {
       router.replace('/pos');
     }
-  }, [user, loading, pathname, isOwner, router]);
+  }, [user, loading, pathname, isOwner, isAdminPusat, router]);
 
   // Loading state screen
   if (loading) {
